@@ -1,0 +1,23 @@
+{
+  "name": "desktop-pet-minimal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Desktop Pet vertical slice",
+  "main": "src/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron ."
+  },
+  "dependencies": {
+    "pixi.js": "8.19.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "cross-env": "latest",
+    "electron": "43.2.0",
+    "vite": "latest",
+    "wait-on": "latest"
+  }
+}
