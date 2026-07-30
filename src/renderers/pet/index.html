@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Desktop Pet</title>
+  </head>
+  <body>
+    <main id="pet-shell">
+      <section id="pet-root" aria-label="Desktop pet"></section>
+
+      <section id="work-overlay" aria-label="Active work" hidden>
+        <output id="work-countdown" aria-live="polite"></output>
+        <button id="cancel-work-button" type="button">Cancel</button>
+      </section>
+
+      <section
+        id="pet-stats-overlay"
+        aria-label="Pet status and shortcuts"
+        hidden
+      >
+        <div class="needs-grid" aria-label="Pet needs">
+          <label>
+            <span>Food</span>
+            <progress id="hunger" max="100"></progress>
+          </label>
+          <label>
+            <span>Water</span>
+            <progress id="thirst" max="100"></progress>
+          </label>
+          <label>
+            <span>Mood</span>
+            <progress id="mood" max="100"></progress>
+          </label>
+          <label>
+            <span>Energy</span>
+            <progress id="energy" max="100"></progress>
+          </label>
+        </div>
+
+        <div class="control-row">
+          <button id="walk-button" type="button">Walk</button>
+          <button id="work-menu-button" type="button">Work</button>
+          <button id="careers-menu-button" type="button">Careers</button>
+          <span id="wallet" aria-label="Wallet"></span>
+          <span id="mastery" aria-label="Mastery"></span>
+        </div>
+
+        <output id="status-text" aria-live="polite"></output>
+      </section>
+    </main>
+    <script type="module" src="/index.ts"></script>
+  </body>
+</html>

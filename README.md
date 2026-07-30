@@ -1,43 +1,55 @@
-# Desktop Pet — Minimal Core Artifact
+# Desktop Pet
 
-A runnable Electron + PixiJS vertical slice targeting Windows 10 and Windows 11.
+Windows-first Electron desktop-pet project using TypeScript, React, and PixiJS.
 
-## Included
+The product baseline is `docs/Desktop_Pet_SRS_v1.0.docx`. The initial technical
+design is `docs/Desktop_Pet_SDD_v1.0.docx` and takes precedence for technical
+implementation decisions.
 
-- Transparent, frameless, always-on-top pet window
-- Generated four-frame placeholder sprite sheet animated at 12 FPS (within the 6–24 FPS target)
-- Dragging the pet moves the window; position is not persisted
-- Right-click pet overlay with Bob's energy, money, and management-window access
-- Management window displaying Bob and starting one job
-- 30-second job paying $10.00 on completion
-- Cancellation from the working overlay with elapsed-time reward prorated and rounded to cents
-- Energy begins at 100, drains at 1 per minute, remains depleted, and cancels work at zero
-- In-memory main-process state
-- Hidden management-window shortcut `Ctrl+Shift+E` to set energy to 0.05
+## Current scope
 
-## Run
+This repository contains only the foundation for the first prototype vertical
+slice described by SDD section 22. Gmail, advanced careers, general mod support,
+macOS packaging, multiple pets, and other post-slice features are intentionally
+not implemented.
 
-Requires a supported Node.js/npm installation on Windows 10 or Windows 11.
+## Project structure
 
-```bash
-npm install
-npm run dev
-```
+- `src/main`: Electron main process and platform services.
+- `src/preload`: narrow typed renderer bridge.
+- `src/renderers`: PixiJS pet and React management renderer entry points.
+- `content/core`: built-in prototype assets and data.
+- `docs/architecture`: durable summaries of architectural constraints.
+- `docs/implementation`: scoped implementation plans.
+- `docs/adr`: architecture decision records.
 
-Production-like local run:
+Domain, simulation, persistence, and renderer-contract code will be added as
+ordinary folders under `src/` when the vertical slice reaches those milestones.
+They should become separate packages only if the project later has an
+independent application, publishing boundary, or demonstrable build need.
+
+## Minimal window artifact
+
+The runnable prototype is a secure, transparent Windows pet window with:
+
+- four-frame PixiJS idle animation and deterministic animation fallbacks;
+- click-to-pet and hold-to-drag interaction;
+- bounded cross-display positioning with a minimum visible grab area;
+- authoritative main-process hunger, thirst, mood, and energy simulation;
+- versioned renderer patches with full-snapshot resynchronization;
+- a right-click stats and subsystem-shortcut overlay;
+- a separate pinned work countdown with immediate Cancel; and
+- one lazy, single-instance React management window with Work and Careers tabs.
+
+Right-click the pet to toggle its stats overlay. Click outside the overlay to
+dismiss it. Work and Careers open as tabs in the same management window. During
+work, the countdown and Cancel control remain visible independently, so the
+stats overlay can be opened and dismissed without disturbing the active job.
+
+Pet state is currently in-memory and resets when the application closes;
+SQLite persistence is the next vertical-slice milestone.
 
 ```bash
 npm install
 npm start
 ```
-
-## Manual acceptance checks
-
-1. Bob renders in a transparent always-on-top window and animates.
-2. Drag Bob and verify the window follows.
-3. Right-click Bob, open management, and start the job.
-4. Verify the working overlay displays remaining time and Cancel.
-5. Cancel around 15 seconds; total money should increase by about $5.00, rounded to cents.
-6. Start another job and let it complete; total money increases by $10.00.
-7. In management press `Ctrl+Shift+E`, start a job, and verify it automatically cancels when energy reaches zero.
-8. Restart the app; in-memory stats and window position reset.

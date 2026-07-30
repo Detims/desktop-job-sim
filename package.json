@@ -1,23 +1,40 @@
 {
-  "name": "desktop-pet-minimal",
-  "version": "0.1.0",
+  "name": "desktop-pet",
+  "version": "0.0.0",
   "private": true,
-  "description": "Minimal Desktop Pet vertical slice",
-  "main": "src/main.cjs",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "description": "Windows-first desktop pet life simulator",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "build": "vite build",
-    "start": "npm run build && electron ."
+    "build": "npm run build:main && npm run build:preload && npm run build:pet && npm run build:manage",
+    "build:main": "vite build --config vite.main.config.ts",
+    "build:manage": "vite build --config vite.manage.config.ts",
+    "build:preload": "npm run build:preload:pet && npm run build:preload:management",
+    "build:preload:management": "vite build --config vite.preload.config.ts --mode management",
+    "build:preload:pet": "vite build --config vite.preload.config.ts --mode pet",
+    "build:pet": "vite build --config vite.pet.config.ts",
+    "dev": "npm run start",
+    "postinstall": "install-electron",
+    "start": "npm run build && electron .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "pixi.js": "8.19.0"
+    "pixi.js": "^8.19.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "latest",
-    "concurrently": "latest",
-    "cross-env": "latest",
-    "electron": "43.2.0",
-    "vite": "latest",
-    "wait-on": "latest"
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "^43.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.0"
   }
 }

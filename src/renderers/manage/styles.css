@@ -1,0 +1,292 @@
+:root {
+  color: #28251f;
+  font-family:
+    "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 85% 0%, rgb(250 190 83 / 24%), transparent 30%),
+    #f4f1e8;
+}
+
+button {
+  font: inherit;
+}
+
+.management-shell {
+  margin: 0 auto;
+  max-width: 880px;
+  min-height: 100vh;
+  padding: 28px 34px 36px;
+}
+
+.app-header,
+.section-heading,
+.activity-line,
+.actions,
+.account-summary {
+  align-items: center;
+  display: flex;
+}
+
+.app-header,
+.section-heading,
+.activity-line {
+  justify-content: space-between;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  color: #a16207;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.account-summary {
+  background: rgb(255 255 255 / 70%);
+  border: 1px solid rgb(120 113 98 / 20%);
+  border-radius: 999px;
+  font-size: 12px;
+  gap: 12px;
+  padding: 8px 13px;
+}
+
+.tabs {
+  border-bottom: 1px solid #d6d0c2;
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+}
+
+.tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: #716b60;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 2px 9px;
+}
+
+.tabs button.selected {
+  border-bottom-color: #d97706;
+  color: #28251f;
+}
+
+.tab-panel {
+  background: rgb(255 255 255 / 72%);
+  border: 1px solid rgb(120 113 98 / 20%);
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgb(60 49 30 / 10%);
+  margin-top: 22px;
+  padding: 24px;
+}
+
+.description {
+  color: #625d54;
+  line-height: 1.55;
+  margin-top: 12px;
+  max-width: 680px;
+}
+
+.status {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 6px 10px;
+}
+
+.status.idle {
+  background: #e8e3d8;
+  color: #625d54;
+}
+
+.status.active {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.metric-grid,
+.career-summary {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.career-summary {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.metric-grid article,
+.career-summary article {
+  background: #f7f4ed;
+  border-radius: 12px;
+  padding: 13px;
+}
+
+.metric-grid span,
+.career-summary span {
+  color: #787166;
+  display: block;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.metric-grid strong,
+.career-summary strong {
+  font-size: 16px;
+}
+
+.activity-card {
+  background: #292720;
+  border-radius: 13px;
+  color: white;
+  margin-top: 18px;
+  padding: 14px;
+}
+
+.activity-card progress {
+  accent-color: #f59e0b;
+  height: 9px;
+  margin: 10px 0 6px;
+  width: 100%;
+}
+
+.activity-line {
+  font-size: 12px;
+}
+
+.activity-line.earnings {
+  color: #d6d3cb;
+}
+
+.requirements {
+  border-top: 1px solid #ded8cb;
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+.requirements h3 {
+  font-size: 14px;
+}
+
+.requirements ul {
+  color: #625d54;
+  line-height: 1.6;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.requirements li.met::marker {
+  color: #16a34a;
+}
+
+.requirements li.unmet {
+  color: #b91c1c;
+}
+
+.actions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.actions button {
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 750;
+  padding: 10px 17px;
+}
+
+.actions .primary {
+  background: #d97706;
+  color: white;
+}
+
+.actions .danger {
+  background: #dc2626;
+  color: white;
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.future-note {
+  background: #fff7df;
+  border-left: 4px solid #eab308;
+  border-radius: 0 10px 10px 0;
+  color: #665a35;
+  line-height: 1.5;
+  margin-top: 22px;
+  padding: 14px 16px;
+}
+
+.error-banner {
+  background: #fee2e2;
+  border-radius: 8px;
+  color: #991b1b;
+  margin-top: 14px;
+  padding: 9px 12px;
+}
+
+.loading {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .management-shell {
+    padding: 20px;
+  }
+
+  .metric-grid,
+  .career-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+

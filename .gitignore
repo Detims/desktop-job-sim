@@ -1,2 +1,22 @@
-/node_modules
-/package-lock.json
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.vite/
+out/
+release/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+
+# Local document-rendering and inspection artifacts
+.tmp/
+
+# Local application state
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+.editorconfig
+package-lock.json

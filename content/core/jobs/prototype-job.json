@@ -1,0 +1,14 @@
+{
+  "id": "core:prototype-desk-job",
+  "name": "Sort Tiny Files",
+  "durationMs": 15000,
+  "rewardCoins": 12,
+  "rewardMastery": 5,
+  "completionMasteryBonus": 2,
+  "needCosts": {
+    "hunger": 2,
+    "thirst": 3,
+    "mood": 1,
+    "energy": 8
+  }
+}

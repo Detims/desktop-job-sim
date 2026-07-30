@@ -1,0 +1,175 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", sans-serif;
+}
+
+html,
+body,
+#pet-shell,
+#pet-root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+html,
+body {
+  background: transparent;
+}
+
+body {
+  user-select: none;
+}
+
+#pet-shell {
+  position: relative;
+}
+
+#pet-root {
+  cursor: pointer;
+}
+
+#pet-shell.is-dragging #pet-root {
+  cursor: grabbing;
+}
+
+canvas {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+#work-overlay {
+  align-items: center;
+  background: rgb(34 36 42 / 92%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  color: white;
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  left: 50%;
+  padding: 5px 6px 5px 11px;
+  position: absolute;
+  top: 10px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+#work-overlay button {
+  background: #ef4444;
+  color: white;
+  padding: 3px 8px;
+}
+
+#work-overlay button:hover {
+  background: #dc2626;
+}
+
+#pet-stats-overlay {
+  backdrop-filter: blur(9px);
+  background: rgb(248 250 252 / 94%);
+  border: 1px solid rgb(51 65 85 / 18%);
+  border-radius: 12px;
+  bottom: 6px;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 22%);
+  box-sizing: border-box;
+  color: #1e293b;
+  left: 8px;
+  padding: 7px 9px 6px;
+  position: absolute;
+  right: 8px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.needs-grid {
+  display: grid;
+  gap: 3px 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.needs-grid label {
+  align-items: center;
+  display: grid;
+  font-size: 10px;
+  gap: 5px;
+  grid-template-columns: 34px 1fr;
+}
+
+progress {
+  accent-color: #f59e0b;
+  height: 7px;
+  width: 100%;
+}
+
+.control-row {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+button {
+  background: #f59e0b;
+  border: 0;
+  border-radius: 6px;
+  color: #3b2104;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 3px 8px;
+}
+
+button:hover {
+  background: #fbbf24;
+}
+
+button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#wallet,
+#mastery {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+}
+
+#mastery {
+  margin-left: 0;
+}
+
+#status-text {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+  min-height: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pet-shell[data-presentation="petted"] canvas {
+  filter: drop-shadow(0 0 8px rgb(244 114 182 / 70%));
+}
+
+#pet-shell[data-presentation="working"] canvas {
+  filter: drop-shadow(0 0 6px rgb(250 204 21 / 65%));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pet-stats-overlay {
+    transition: none;
+  }
+}
