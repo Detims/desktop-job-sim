@@ -6,7 +6,7 @@
 
 * { box-sizing: border-box; }
 html, body, #home-shell { min-height: 100%; margin: 0; }
-body { background: radial-gradient(circle at top, #4b3b5f, #211c2a 72%); user-select: none; }
+body { background: radial-gradient(circle at top, #4b3b5f, #211c2a 72%); overflow: hidden; user-select: none; }
 button { border: 1px solid rgb(255 255 255 / 15%); border-radius: 8px; background: #4a4057; color: #f8fafc; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; padding: 7px 12px; }
 button:hover:not(:disabled) { background: #5c4e6c; }
 button:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
@@ -24,7 +24,7 @@ h1 { font-size: 25px; margin: 0; }
 #layout-status { color: #cbd5e1; font-size: 12px; margin-right: 4px; max-width: 300px; text-align: right; }
 #layout-status.error { color: #fca5a5; }
 
-.room-frame { background: #16121d; border: 1px solid rgb(255 255 255 / 15%); border-radius: 16px; box-shadow: 0 20px 55px rgb(0 0 0 / 35%); margin: 0 auto; max-width: 900px; overflow: hidden; position: relative; width: 100%; }
+.room-frame { background: #16121d; border: 1px solid rgb(255 255 255 / 15%); border-radius: 16px; box-shadow: 0 20px 55px rgb(0 0 0 / 35%); margin: 0 auto; max-width: 900px; overflow: hidden; position: relative; width: min(100%, calc((100vh - 145px) * 1.5)); }
 #home-canvas { aspect-ratio: 3 / 2; cursor: default; width: 100%; }
 #home-canvas canvas { display: block; height: 100%; width: 100%; }
 .room-hint { background: rgb(15 12 20 / 90%); color: #aeb7c7; font-size: 12px; margin: 0; padding: 9px 14px; text-align: center; }
