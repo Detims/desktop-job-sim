@@ -57,6 +57,7 @@ let homeLayoutController: HomeLayoutController | null = null;
 let homeIsDirty = false;
 let homeCloseConfirmed = false;
 let isQuitting = false;
+let homeReadyTimeout: NodeJS.Timeout | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
@@ -216,6 +217,10 @@ function registerPetIpc(): void {
     if (!isHomeSender(event) || homeWindow === null) {
       return;
     }
+    if (homeReadyTimeout !== null) {
+      clearTimeout(homeReadyTimeout);
+      homeReadyTimeout = null;
+    }
     petWindow?.hide();
     homeWindow.show();
     homeWindow.focus();
@@ -372,6 +377,10 @@ function createPetWindow(): BrowserWindow {
   });
 
   window.on("closed", () => {
+    if (homeReadyTimeout !== null) {
+      clearTimeout(homeReadyTimeout);
+      homeReadyTimeout = null;
+    }
     if (petWindow === window) {
       petWindow = null;
     }
@@ -516,6 +525,15 @@ function createHomeWindow(): BrowserWindow {
       window.destroy();
     }
   });
+  homeReadyTimeout = setTimeout(() => {
+    if (!window.isDestroyed() && !window.isVisible()) {
+      handleHomeUnavailable(
+        "home.ready_timeout",
+        "Home did not become ready within 10 seconds.",
+      );
+      window.destroy();
+    }
+  }, 10_000);
   return window;
 }
 

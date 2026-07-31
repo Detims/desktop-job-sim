@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Desktop Pet Home</title>
+  </head>
+  <body>
+    <main id="home-shell">
+      <header class="home-header">
+        <div>
+          <p class="eyebrow">Pocket Home</p>
+          <h1>Starter Room</h1>
+        </div>
+        <div class="layout-actions">
+          <output id="layout-status" aria-live="polite">Layout saved</output>
+          <button id="discard-button" type="button" disabled>Discard</button>
+          <button id="save-button" class="primary" type="button" disabled>Save</button>
+        </div>
+      </header>
+
+      <section class="room-frame" aria-label="Starter room furniture editor">
+        <div id="home-canvas"></div>
+        <p class="room-hint">Drag furniture to a clear grid position. Red previews cannot be placed.</p>
+
+        <section id="work-overlay" aria-label="Active work" hidden>
+          <output id="work-countdown" aria-live="polite"></output>
+          <button id="cancel-work-button" class="danger" type="button">Cancel</button>
+        </section>
+
+        <section id="pet-stats-overlay" aria-label="Pet status and shortcuts" hidden>
+          <div class="stats-heading">
+            <output id="status-text" aria-live="polite"></output>
+            <span id="wallet" aria-label="Wallet"></span>
+            <span id="mastery" aria-label="Mastery"></span>
+          </div>
+          <div class="needs-grid" aria-label="Pet needs">
+            <label><span>Food</span><progress id="hunger" max="100"></progress></label>
+            <label><span>Water</span><progress id="thirst" max="100"></progress></label>
+            <label><span>Mood</span><progress id="mood" max="100"></progress></label>
+            <label><span>Energy</span><progress id="energy" max="100"></progress></label>
+          </div>
+          <div class="shortcut-row">
+            <button id="desktop-button" type="button">Desktop</button>
+            <button id="walk-button" type="button" disabled title="Walking is unavailable inside Home">Walk</button>
+            <button id="work-menu-button" type="button">Work</button>
+            <button id="careers-menu-button" type="button">Careers</button>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/index.ts"></script>
+  </body>
+</html>
