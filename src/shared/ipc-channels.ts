@@ -4,7 +4,13 @@ export const IPC_CHANNELS = Object.freeze({
   drag: "pet-window:drag",
   endDrag: "pet-window:end-drag",
   getSnapshot: "pet:get-snapshot",
+  getHomeLayout: "home:get-layout",
+  homeDirty: "home:set-dirty",
+  homeReady: "home:ready",
   managementTab: "management:set-tab",
+  openHome: "home:open",
   openManagement: "management:open",
   patch: "pet:patch",
+  requestDesktop: "home:request-desktop",
+  saveHomeLayout: "home:save-layout",
 });

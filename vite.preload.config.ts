@@ -4,14 +4,17 @@ import { defineConfig } from "vite";
 
 export default defineConfig(({ mode }) => {
   const isManagement = mode === "management";
-  const bundleName = isManagement ? "management" : "pet";
+  const isHome = mode === "home";
+  const bundleName = isManagement ? "management" : isHome ? "home" : "pet";
   const entry = isManagement
     ? "./src/preload/management.ts"
-    : "./src/preload/index.ts";
+    : isHome
+      ? "./src/preload/home.ts"
+      : "./src/preload/index.ts";
 
   return {
     build: {
-      emptyOutDir: !isManagement,
+      emptyOutDir: !isManagement && !isHome,
       lib: {
         entry: fileURLToPath(new URL(entry, import.meta.url)),
         formats: ["cjs"],

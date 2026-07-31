@@ -41,6 +41,7 @@ const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
 const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
+const homeButton = requiredElement<HTMLButtonElement>("#home-button");
 const workMenuButton =
   requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>(
@@ -206,6 +207,14 @@ async function openManagement(tab: ManagementTab): Promise<void> {
   }
 }
 
+async function openHome(): Promise<void> {
+  try {
+    await window.desktopPet.openHome();
+  } catch (error: unknown) {
+    console.error("Unable to open Home.", error);
+  }
+}
+
 window.desktopPet.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -332,6 +341,10 @@ document.addEventListener("keydown", (event) => {
 
 walkButton.addEventListener("click", () => {
   void dispatch({ type: "walk" });
+});
+homeButton.addEventListener("click", () => {
+  setStatsOverlayOpen(false);
+  void openHome();
 });
 workMenuButton.addEventListener("click", () => {
   void openManagement("work");

@@ -15,6 +15,7 @@ export interface DesktopPetBridge {
   drag(point: WindowPoint): void;
   endDrag(): void;
   getSnapshot(): Promise<PetSnapshot>;
+  openHome(): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   readonly runtime: {
@@ -38,6 +39,9 @@ const bridge: DesktopPetBridge = Object.freeze({
   },
   getSnapshot() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSnapshot);
+  },
+  openHome() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openHome);
   },
   openManagement(tab: ManagementTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openManagement, tab);
