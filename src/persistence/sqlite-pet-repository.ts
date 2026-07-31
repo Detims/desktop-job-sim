@@ -8,13 +8,17 @@ import {
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { assertValidHomeLayout } from "../domain/home-layout.js";
+import { HomeLayoutSchema } from "../shared/home-contracts.js";
 import { PersistedPetRecordSchema } from "../shared/contracts.js";
+import type { HomeLayout } from "../shared/home-types.js";
 import type { PersistedPetRecord } from "../shared/pet-types.js";
 import type { DiagnosticLogger } from "./diagnostic-logger.js";
+import type { HomeLayoutRepository } from "./home-layout-repository.js";
 import type { PetRepository } from "./pet-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -33,7 +37,14 @@ interface PragmaRow {
   [key: string]: number | string;
 }
 
-export class SqlitePetRepository implements PetRepository {
+interface HomeLayoutRow {
+  layout_json: string;
+  layout_version: number;
+}
+
+export class SqlitePetRepository
+  implements PetRepository, HomeLayoutRepository
+{
   private constructor(
     private database: DatabaseSync,
     private readonly logger: DiagnosticLogger,
@@ -138,6 +149,37 @@ export class SqlitePetRepository implements PetRepository {
     }
   }
 
+  loadHomeLayout(): HomeLayout | null {
+    try {
+      const row = this.database
+        .prepare(
+          `SELECT layout_json, layout_version
+             FROM home_layout
+            WHERE id = 1`,
+        )
+        .get() as HomeLayoutRow | undefined;
+      if (row === undefined) {
+        return null;
+      }
+
+      const parsed = HomeLayoutSchema.parse(JSON.parse(row.layout_json));
+      if (parsed.layoutVersion !== row.layout_version) {
+        throw new Error("Home layout version columns do not match.");
+      }
+      return assertValidHomeLayout(parsed);
+    } catch (error: unknown) {
+      const wrapped = new PersistenceError(
+        "database.home_layout_invalid",
+        "Persisted home layout failed validation.",
+        { cause: error },
+      );
+      this.logger.write("error", wrapped.eventCode, wrapped.message, {
+        cause: error instanceof Error ? error.message : String(error),
+      });
+      throw wrapped;
+    }
+  }
+
   save(record: PersistedPetRecord): void {
     const validated = PersistedPetRecordSchema.parse(record);
     this.database.exec("BEGIN IMMEDIATE");
@@ -169,6 +211,51 @@ export class SqlitePetRepository implements PetRepository {
         "Pet state could not be saved transactionally.",
         { cause: error },
       );
+      this.logger.write("error", wrapped.eventCode, wrapped.message, {
+        cause: error instanceof Error ? error.message : String(error),
+      });
+      throw wrapped;
+    }
+  }
+
+  saveHomeLayout(
+    layout: HomeLayout,
+    expectedVersion: number | null,
+  ): void {
+    const validated = assertValidHomeLayout(HomeLayoutSchema.parse(layout));
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const row = this.database
+        .prepare("SELECT layout_version FROM home_layout WHERE id = 1")
+        .get() as Pick<HomeLayoutRow, "layout_version"> | undefined;
+      const persistedVersion = row?.layout_version ?? null;
+      if (persistedVersion !== expectedVersion) {
+        throw new PersistenceError(
+          "home.layout_conflict",
+          "The home layout changed before this save could be applied.",
+        );
+      }
+
+      this.database
+        .prepare(
+          `INSERT INTO home_layout (id, layout_json, layout_version)
+           VALUES (1, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             layout_json = excluded.layout_json,
+             layout_version = excluded.layout_version`,
+        )
+        .run(JSON.stringify(validated), validated.layoutVersion);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      const wrapped =
+        error instanceof PersistenceError
+          ? error
+          : new PersistenceError(
+              "database.home_layout_save_failed",
+              "The home layout could not be saved transactionally.",
+              { cause: error },
+            );
       this.logger.write("error", wrapped.eventCode, wrapped.message, {
         cause: error instanceof Error ? error.message : String(error),
       });
@@ -233,9 +320,18 @@ export class SqlitePetRepository implements PetRepository {
             saved_at INTEGER NOT NULL CHECK (saved_at >= 0),
             clean_exit INTEGER NOT NULL CHECK (clean_exit IN (0, 1))
           ) STRICT;
-          PRAGMA user_version = 1;
         `);
       }
+      if (fromVersion < 2) {
+        database.exec(`
+          CREATE TABLE home_layout (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            layout_json TEXT NOT NULL,
+            layout_version INTEGER NOT NULL CHECK (layout_version >= 0)
+          ) STRICT;
+        `);
+      }
+      database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");
     } catch (error: unknown) {
       database.exec("ROLLBACK");

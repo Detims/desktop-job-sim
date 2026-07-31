@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createInitialPetState } from "../simulation/pet-simulation.js";
+import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { DiagnosticLogger } from "./diagnostic-logger.js";
 import { PersistenceError } from "./persistence-error.js";
 import { SqlitePetRepository } from "./sqlite-pet-repository.js";
@@ -105,5 +106,55 @@ describe("SqlitePetRepository", () => {
       .get() as { legacy_value: string };
     expect(row.legacy_value).toBe("original");
     original.close();
+  });
+
+  it("migrates schema version one to the home-layout schema", () => {
+    const { logger, paths } = fixture();
+    const versionOne = new DatabaseSync(paths.databasePath);
+    versionOne.exec(`
+      CREATE TABLE pet_runtime (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        state_json TEXT NOT NULL,
+        position_x REAL NOT NULL,
+        position_y REAL NOT NULL,
+        saved_at INTEGER NOT NULL CHECK (saved_at >= 0),
+        clean_exit INTEGER NOT NULL CHECK (clean_exit IN (0, 1))
+      ) STRICT;
+      PRAGMA user_version = 1;
+    `);
+    versionOne.close();
+
+    const repository = SqlitePetRepository.open(paths, logger);
+    expect(repository.loadHomeLayout()).toBeNull();
+    repository.close();
+    expect(existsSync(paths.backupPath)).toBe(true);
+
+    const migrated = new DatabaseSync(paths.databasePath);
+    const version = migrated.prepare("PRAGMA user_version").get() as {
+      user_version: number;
+    };
+    expect(version.user_version).toBe(2);
+    migrated.close();
+  });
+
+  it("saves layouts with optimistic version checks", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    const initial = createInitialHomeLayout();
+    repository.saveHomeLayout(initial, null);
+
+    const moved = {
+      ...initial,
+      furniture: initial.furniture.map((item) =>
+        item.kind === "desk" ? { ...item, x: 7, y: 4 } : item,
+      ),
+      layoutVersion: 1,
+    };
+    repository.saveHomeLayout(moved, 0);
+    expect(repository.loadHomeLayout()).toEqual(moved);
+    expect(() => repository.saveHomeLayout({ ...moved, layoutVersion: 2 }, 0))
+      .toThrowError(expect.objectContaining({ eventCode: "home.layout_conflict" }));
+    expect(repository.loadHomeLayout()).toEqual(moved);
+    repository.close();
   });
 });
