@@ -60,6 +60,13 @@ export interface WindowPoint {
   y: number;
 }
 
+export interface PersistedPetRecord {
+  cleanExit: boolean;
+  position: WindowPoint;
+  savedAt: number;
+  state: PetState;
+}
+
 export interface JobDefinition {
   completionMasteryBonus: number;
   durationMs: number;

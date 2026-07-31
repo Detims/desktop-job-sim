@@ -18,6 +18,7 @@ not implemented.
 - `src/main`: Electron main process and platform services.
 - `src/preload`: narrow typed renderer bridge.
 - `src/renderers`: PixiJS pet and React management renderer entry points.
+- `src/persistence`: SQLite repositories, recovery policy, and diagnostics.
 - `content/core`: built-in prototype assets and data.
 - `docs/architecture`: durable summaries of architectural constraints.
 - `docs/implementation`: scoped implementation plans.
@@ -46,8 +47,12 @@ dismiss it. Work and Careers open as tabs in the same management window. During
 work, the countdown and Cancel control remain visible independently, so the
 stats overlay can be opened and dismissed without disturbing the active job.
 
-Pet state is currently in-memory and resets when the application closes;
-SQLite persistence is the next vertical-slice milestone.
+Pet state and desktop position persist locally in SQLite. Active work is
+checkpointed every five seconds, cancelled proportionally on close or crash,
+and restored without duplicating rewards. Closed-app need decay runs at half
+the online rate for at most eight hours. Database failures stop safely and are
+recorded in rotating local JSONL diagnostics; profiles are never silently
+reset.
 
 ```bash
 npm install

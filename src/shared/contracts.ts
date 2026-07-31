@@ -8,6 +8,7 @@ export type {
   PetCommand,
   PetMutableState,
   PetPatch,
+  PersistedPetRecord,
   PetSnapshot,
   PetState,
   Presentation,
@@ -79,6 +80,13 @@ export const PetCommandSchema = z.discriminatedUnion("type", [
 export const WindowPointSchema = z.object({
   x: z.number().finite(),
   y: z.number().finite(),
+});
+
+export const PersistedPetRecordSchema = z.object({
+  cleanExit: z.boolean(),
+  position: WindowPointSchema,
+  savedAt: z.number().nonnegative(),
+  state: PetStateSchema,
 });
 
 export const JobDefinitionSchema = z.object({

@@ -13,7 +13,14 @@ export default defineConfig({
     minify: false,
     outDir: "dist/main",
     rollupOptions: {
-      external: ["electron", "node:path", "node:perf_hooks", "node:url"],
+      external: [
+        "electron",
+        "node:fs",
+        "node:path",
+        "node:perf_hooks",
+        "node:sqlite",
+        "node:url",
+      ],
     },
     sourcemap: true,
     target: "node24",

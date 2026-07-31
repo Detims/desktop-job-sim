@@ -32,5 +32,16 @@ describe("PetController", () => {
     controller.tick(1_000, 2_200);
     expect(controller.getSnapshot().state.presentation).toBe("working");
   });
-});
 
+  it("does not expose a command when its durable commit fails", async () => {
+    const controller = new PetController(1_000, () => {
+      throw new Error("disk unavailable");
+    });
+
+    await expect(
+      controller.dispatch({ type: "pet" }, 1_100),
+    ).rejects.toThrow("disk unavailable");
+    expect(controller.getSnapshot().state.stateVersion).toBe(0);
+    expect(controller.getSnapshot().state.needs.mood).toBe(90);
+  });
+});

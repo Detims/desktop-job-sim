@@ -14,14 +14,21 @@ import {
 } from "../simulation/pet-simulation.js";
 
 type PatchListener = (patch: PetPatch) => void;
+type DurableCommit = (state: PetState, now: number) => void;
 
 export class PetController {
   private readonly commandQueue = new SequentialCommandQueue();
   private readonly listeners = new Set<PatchListener>();
   private state: PetState;
 
-  constructor(now: number) {
-    this.state = createInitialPetState(now);
+  constructor(
+    initial: number | PetState,
+    private readonly durableCommit?: DurableCommit,
+  ) {
+    this.state =
+      typeof initial === "number"
+        ? createInitialPetState(initial)
+        : structuredClone(initial);
   }
 
   getSnapshot(): PetSnapshot {
@@ -37,39 +44,46 @@ export class PetController {
     };
   }
 
-  tick(elapsedMs: number, now: number): void {
+  tick(elapsedMs: number, now: number): PetSnapshot {
     this.commit(advancePetState(this.state, elapsedMs, now));
+    return this.getSnapshot();
   }
 
   dispatch(command: PetCommand, now: number): Promise<PetSnapshot> {
     return this.commandQueue.enqueue(() => {
       switch (command.type) {
         case "cancelJob":
-          this.commit(cancelActiveJob(this.state));
+          this.commit(cancelActiveJob(this.state), now);
           break;
         case "pet":
-          this.commit({
-            ...this.state,
-            needs: {
-              ...this.state.needs,
-              mood: Math.min(100, this.state.needs.mood + 3),
+          this.commit(
+            {
+              ...this.state,
+              needs: {
+                ...this.state.needs,
+                mood: Math.min(100, this.state.needs.mood + 3),
+              },
+              presentation: "petted",
+              presentationUntil: now + 900,
+              statusText: "Purr!",
             },
-            presentation: "petted",
-            presentationUntil: now + 900,
-            statusText: "Purr!",
-          });
+            now,
+          );
           break;
         case "startJob":
-          this.commit(startPrototypeJob(this.state, now));
+          this.commit(startPrototypeJob(this.state, now), now);
           break;
         case "walk":
           if (this.state.activity === null) {
-            this.commit({
-              ...this.state,
-              presentation: "walking",
-              presentationUntil: now + 2500,
-              statusText: "Taking a tiny walk.",
-            });
+            this.commit(
+              {
+                ...this.state,
+                presentation: "walking",
+                presentationUntil: now + 2500,
+                statusText: "Taking a tiny walk.",
+              },
+              now,
+            );
           }
           break;
       }
@@ -78,7 +92,13 @@ export class PetController {
     });
   }
 
-  private commit(nextState: PetState): void {
+  settleForCleanShutdown(elapsedMs: number, now: number): PetSnapshot {
+    this.commit(advancePetState(this.state, elapsedMs, now));
+    this.commit(cancelActiveJob(this.state));
+    return this.getSnapshot();
+  }
+
+  private commit(nextState: PetState, durableAt?: number): void {
     if (nextState === this.state) {
       return;
     }
@@ -97,10 +117,16 @@ export class PetController {
       wallet: nextState.wallet,
     };
 
-    this.state = {
+    const committedState: PetState = {
       ...nextState,
       stateVersion: nextVersion,
     };
+
+    if (durableAt !== undefined) {
+      this.durableCommit?.(committedState, durableAt);
+    }
+
+    this.state = committedState;
 
     const patch: PetPatch = {
       baseVersion,
@@ -113,4 +139,3 @@ export class PetController {
     }
   }
 }
-

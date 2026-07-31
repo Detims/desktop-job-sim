@@ -10,7 +10,7 @@ import {
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 
-const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
+export const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
   energy: 1.5,
   hunger: 2,
   mood: 1,
@@ -18,6 +18,8 @@ const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
 });
 
 const HOUR_MS = 60 * 60 * 1000;
+export const MAX_OFFLINE_ELAPSED_MS = 8 * HOUR_MS;
+export const OFFLINE_NEED_RATE = 0.5;
 
 function clampNeed(value: number): number {
   return Math.min(100, Math.max(0, value));
@@ -100,6 +102,30 @@ export function cancelActiveJob(state: PetState): PetState {
     presentation: "idle",
     presentationUntil: null,
     statusText: "Work cancelled. Partial rewards kept.",
+  };
+}
+
+export function applyOfflineNeedDecay(
+  state: PetState,
+  elapsedMs: number,
+  now: number,
+  rate = OFFLINE_NEED_RATE,
+): PetState {
+  const boundedElapsedMs = Math.min(
+    MAX_OFFLINE_ELAPSED_MS,
+    Math.max(0, elapsedMs),
+  );
+
+  return {
+    ...state,
+    needs: applyNeedDelta(
+      state.needs,
+      NEED_DECAY_PER_HOUR,
+      (boundedElapsedMs / HOUR_MS) * rate,
+    ),
+    presentation: state.activity === null ? "idle" : "working",
+    presentationUntil: null,
+    updatedAt: now,
   };
 }
 
