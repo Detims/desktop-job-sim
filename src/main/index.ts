@@ -13,6 +13,9 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import {
+  SaveHomeLayoutCommandSchema,
+} from "../shared/home-contracts.js";
+import {
   ManagementTabSchema,
   PetCommandSchema,
   WindowPointSchema,
@@ -27,7 +30,9 @@ import { PersistenceError } from "../persistence/persistence-error.js";
 import { PersistenceSession } from "../persistence/persistence-session.js";
 import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
+import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { createInitialPetState } from "../simulation/pet-simulation.js";
+import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
 import {
   calculateInitialPetBounds,
@@ -38,6 +43,7 @@ import {
 
 let petWindow: BrowserWindow | null = null;
 let managementWindow: BrowserWindow | null = null;
+let homeWindow: BrowserWindow | null = null;
 let dragOffset: WindowPoint | null = null;
 let scheduler: NodeJS.Timeout | null = null;
 let lastTickAt = performance.now();
@@ -47,12 +53,24 @@ let persistenceSession: PersistenceSession | null = null;
 let diagnosticLogger: DiagnosticLogger | null = null;
 let cleanShutdownSaved = false;
 let persistenceFailed = false;
+let homeLayoutController: HomeLayoutController | null = null;
+let homeIsDirty = false;
+let homeCloseConfirmed = false;
+let isQuitting = false;
+let homeReadyTimeout: NodeJS.Timeout | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
     throw new Error("Pet controller is not initialized.");
   }
   return petController;
+}
+
+function requireHomeLayoutController(): HomeLayoutController {
+  if (homeLayoutController === null) {
+    throw new Error("Home layout controller is not initialized.");
+  }
+  return homeLayoutController;
 }
 
 function handlePersistenceFailure(error: unknown): void {
@@ -91,9 +109,14 @@ function isPetStateSender(
 ): boolean {
   return (
     isPetSender(event) ||
+    (homeWindow !== null && event.sender === homeWindow.webContents) ||
     (managementWindow !== null &&
       event.sender === managementWindow.webContents)
   );
+}
+
+function isHomeSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return homeWindow !== null && event.sender === homeWindow.webContents;
 }
 
 function publishPatch(patch: PetPatch): void {
@@ -103,6 +126,10 @@ function publishPatch(patch: PetPatch): void {
 
   if (managementWindow !== null && !managementWindow.isDestroyed()) {
     managementWindow.webContents.send(IPC_CHANNELS.patch, patch);
+  }
+
+  if (homeWindow !== null && !homeWindow.isDestroyed()) {
+    homeWindow.webContents.send(IPC_CHANNELS.patch, patch);
   }
 }
 
@@ -136,13 +163,74 @@ function registerPetIpc(): void {
   ipcMain.handle(
     IPC_CHANNELS.openManagement,
     (event, input: unknown) => {
-      if (!isPetSender(event)) {
+      if (!isPetSender(event) && !isHomeSender(event)) {
         throw new Error("Unauthorized management-window request.");
       }
 
       openManagementWindow(ManagementTabSchema.parse(input));
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.openHome, (event) => {
+    if (!isPetSender(event)) {
+      throw new Error("Unauthorized Home-window request.");
+    }
+    openHomeWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getHomeLayout, (event) => {
+    if (!isHomeSender(event)) {
+      throw new Error("Unauthorized Home-layout request.");
+    }
+    return requireHomeLayoutController().getSnapshot();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.saveHomeLayout,
+    (event, input: unknown) => {
+      if (!isHomeSender(event)) {
+        throw new Error("Unauthorized Home-layout save.");
+      }
+      try {
+        return requireHomeLayoutController().save(
+          SaveHomeLayoutCommandSchema.parse(input),
+        );
+      } catch (error: unknown) {
+        if (
+          error instanceof PersistenceError &&
+          error.eventCode !== "home.layout_conflict"
+        ) {
+          handlePersistenceFailure(error);
+        }
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.on(IPC_CHANNELS.homeDirty, (event, input: unknown) => {
+    if (isHomeSender(event) && typeof input === "boolean") {
+      homeIsDirty = input;
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.homeReady, (event) => {
+    if (!isHomeSender(event) || homeWindow === null) {
+      return;
+    }
+    if (homeReadyTimeout !== null) {
+      clearTimeout(homeReadyTimeout);
+      homeReadyTimeout = null;
+    }
+    petWindow?.hide();
+    homeWindow.show();
+    homeWindow.focus();
+  });
+
+  ipcMain.on(IPC_CHANNELS.requestDesktop, (event) => {
+    if (isHomeSender(event)) {
+      homeWindow?.close();
+    }
+  });
 
   ipcMain.on(IPC_CHANNELS.beginDrag, (event, input: unknown) => {
     if (!isPetSender(event) || petWindow === null) {
@@ -193,6 +281,23 @@ function registerPetIpc(): void {
       }
     }
   });
+}
+
+function restoreDesktopPet(): void {
+  if (isQuitting || petWindow === null || petWindow.isDestroyed()) {
+    return;
+  }
+  petWindow.show();
+}
+
+function handleHomeUnavailable(eventCode: string, cause: unknown): void {
+  diagnosticLogger?.write(
+    "error",
+    eventCode,
+    "Home became unavailable; the desktop pet was restored.",
+    { cause: cause instanceof Error ? cause.message : String(cause) },
+  );
+  restoreDesktopPet();
 }
 
 function secureWindow(window: BrowserWindow): void {
@@ -272,6 +377,10 @@ function createPetWindow(): BrowserWindow {
   });
 
   window.on("closed", () => {
+    if (homeReadyTimeout !== null) {
+      clearTimeout(homeReadyTimeout);
+      homeReadyTimeout = null;
+    }
     if (petWindow === window) {
       petWindow = null;
     }
@@ -342,6 +451,92 @@ function createManagementWindow(initialTab: ManagementTab): BrowserWindow {
   return window;
 }
 
+function createHomeWindow(): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const preloadPath = join(currentDirectory, "../preload/home.cjs");
+  const rendererPath = join(currentDirectory, "../renderer/home/index.html");
+  const window = new BrowserWindow({
+    backgroundColor: "#241f2e",
+    height: 720,
+    minHeight: 620,
+    minWidth: 820,
+    show: false,
+    title: "Desktop Pet Home",
+    width: 980,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: preloadPath,
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  homeIsDirty = false;
+  homeCloseConfirmed = false;
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+
+  window.on("close", (event) => {
+    if (isQuitting || homeCloseConfirmed || !homeIsDirty) {
+      return;
+    }
+    event.preventDefault();
+    void dialog
+      .showMessageBox(window, {
+        buttons: ["Discard Changes and Close", "Return to Home"],
+        cancelId: 1,
+        defaultId: 1,
+        detail: "Your unsaved furniture changes will be discarded.",
+        message: "Close Home without saving?",
+        noLink: true,
+        type: "warning",
+      })
+      .then(({ response }) => {
+        if (response === 0 && !window.isDestroyed()) {
+          homeCloseConfirmed = true;
+          window.close();
+        }
+      });
+  });
+
+  window.on("closed", () => {
+    if (homeWindow === window) {
+      homeWindow = null;
+    }
+    homeIsDirty = false;
+    homeCloseConfirmed = false;
+    restoreDesktopPet();
+  });
+
+  window.webContents.on("did-fail-load", (_event, code, description) => {
+    handleHomeUnavailable("home.load_failed", `${code}: ${description}`);
+  });
+  window.webContents.on("render-process-gone", (_event, details) => {
+    handleHomeUnavailable("home.renderer_gone", details.reason);
+    if (!window.isDestroyed()) {
+      window.destroy();
+    }
+  });
+
+  void window.loadFile(rendererPath).catch((error: unknown) => {
+    handleHomeUnavailable("home.load_failed", error);
+    if (!window.isDestroyed()) {
+      window.destroy();
+    }
+  });
+  homeReadyTimeout = setTimeout(() => {
+    if (!window.isDestroyed() && !window.isVisible()) {
+      handleHomeUnavailable(
+        "home.ready_timeout",
+        "Home did not become ready within 10 seconds.",
+      );
+      window.destroy();
+    }
+  }, 10_000);
+  return window;
+}
+
 function openManagementWindow(tab: ManagementTab): void {
   if (managementWindow === null || managementWindow.isDestroyed()) {
     managementWindow = createManagementWindow(tab);
@@ -355,6 +550,19 @@ function openManagementWindow(tab: ManagementTab): void {
   managementWindow.show();
   managementWindow.focus();
   managementWindow.webContents.send(IPC_CHANNELS.managementTab, tab);
+}
+
+function openHomeWindow(): void {
+  if (homeWindow === null || homeWindow.isDestroyed()) {
+    homeWindow = createHomeWindow();
+    return;
+  }
+  if (homeWindow.isMinimized()) {
+    homeWindow.restore();
+  }
+  if (homeWindow.isVisible()) {
+    homeWindow.focus();
+  }
 }
 
 app.whenReady().then(() => {
@@ -374,6 +582,15 @@ app.whenReady().then(() => {
       diagnosticLogger,
     );
     const persisted = repository.load();
+    const persistedHomeLayout = repository.loadHomeLayout();
+    const initialHomeLayout = persistedHomeLayout ?? createInitialHomeLayout();
+    if (persistedHomeLayout === null) {
+      repository.saveHomeLayout(initialHomeLayout, null);
+    }
+    homeLayoutController = new HomeLayoutController(
+      initialHomeLayout,
+      repository,
+    );
     const defaultBounds = calculateInitialPetBounds(
       screen.getPrimaryDisplay().workArea,
     );
@@ -463,10 +680,12 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
+  isQuitting = true;
   try {
     saveCleanShutdown();
   } catch (error: unknown) {
     event.preventDefault();
+    isQuitting = false;
     handlePersistenceFailure(error);
   }
 });
