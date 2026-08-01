@@ -12,10 +12,17 @@ describe("resolveAnimation", () => {
   it("falls back deterministically to idle", () => {
     expect(resolveAnimation("petted", new Set(["idle"]))).toBe("idle");
     expect(resolveAnimation("dragged", new Set(["idle"]))).toBe("idle");
+    expect(resolveAnimation("resting", new Set(["idle"]))).toBe("idle");
+    expect(resolveAnimation("studying", new Set(["idle"]))).toBe("idle");
+  });
+
+  it("lets study reuse a work animation before falling back to idle", () => {
+    expect(resolveAnimation("studying", new Set(["working", "idle"]))).toBe(
+      "working",
+    );
   });
 
   it("uses the static fallback when no animation exists", () => {
     expect(resolveAnimation("walking", new Set())).toBe("static");
   });
 });
-

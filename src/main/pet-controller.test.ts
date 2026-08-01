@@ -67,4 +67,18 @@ describe("PetController", () => {
       controller.getSnapshot().state.knowledge["core:general"],
     ).toBeCloseTo(10.5);
   });
+
+  it("settles and cancels study when the application is interrupted", async () => {
+    const controller = new PetController(
+      1_000,
+      undefined,
+      { restRecovery: 0.05, studyGain: 0.05 },
+    );
+    await controller.dispatch({ type: "startStudy" }, 1_100);
+
+    const settled = controller.settleForInterruption(5_000, 6_100).state;
+
+    expect(settled.activity).toBeNull();
+    expect(settled.knowledge["core:general"]).toBeGreaterThan(0);
+  });
 });
