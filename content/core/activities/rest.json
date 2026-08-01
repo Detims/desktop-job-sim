@@ -1,0 +1,6 @@
+{
+  "id": "core:basic-rest",
+  "name": "Rest",
+  "durationMs": 15000,
+  "recoveryEnergy": 15
+}

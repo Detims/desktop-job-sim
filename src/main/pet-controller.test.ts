@@ -44,4 +44,27 @@ describe("PetController", () => {
     expect(controller.getSnapshot().state.stateVersion).toBe(0);
     expect(controller.getSnapshot().state.needs.mood).toBe(90);
   });
+
+  it("enforces one major activity and applies configured furniture bonuses", async () => {
+    const controller = new PetController(
+      {
+        ...new PetController(1_000).getSnapshot().state,
+        needs: {
+          ...new PetController(1_000).getSnapshot().state.needs,
+          mood: 50,
+        },
+      },
+      undefined,
+      { restRecovery: 0.05, studyGain: 0.05 },
+    );
+
+    await controller.dispatch({ type: "startStudy" }, 1_100);
+    await controller.dispatch({ type: "startRest" }, 1_200);
+    expect(controller.getSnapshot().state.activity?.type).toBe("study");
+
+    controller.tick(15_000, 16_100);
+    expect(
+      controller.getSnapshot().state.knowledge["core:general"],
+    ).toBeCloseTo(10.5);
+  });
 });

@@ -1,0 +1,13 @@
+{
+  "id": "core:general-study",
+  "name": "General Study",
+  "durationMs": 15000,
+  "knowledgeFieldId": "core:general",
+  "rewardKnowledge": 10,
+  "needCosts": {
+    "hunger": 0,
+    "thirst": 0,
+    "mood": 2,
+    "energy": 5
+  }
+}

@@ -1,5 +1,6 @@
 import { SequentialCommandQueue } from "../domain/command-queue.js";
 import {
+  type ActivityBonuses,
   type PetCommand,
   type PetMutableState,
   type PetPatch,
@@ -8,10 +9,13 @@ import {
 } from "../shared/contracts.js";
 import {
   advancePetState,
-  cancelActiveJob,
+  cancelActiveActivity,
   createInitialPetState,
   startPrototypeJob,
+  startPrototypeRest,
+  startPrototypeStudy,
 } from "../simulation/pet-simulation.js";
+import { NO_ACTIVITY_BONUSES } from "../domain/furniture-bonuses.js";
 
 type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (state: PetState, now: number) => void;
@@ -24,11 +28,16 @@ export class PetController {
   constructor(
     initial: number | PetState,
     private readonly durableCommit?: DurableCommit,
+    private activityBonuses: ActivityBonuses = NO_ACTIVITY_BONUSES,
   ) {
     this.state =
       typeof initial === "number"
         ? createInitialPetState(initial)
         : structuredClone(initial);
+  }
+
+  setActivityBonuses(bonuses: ActivityBonuses): void {
+    this.activityBonuses = { ...bonuses };
   }
 
   getSnapshot(): PetSnapshot {
@@ -52,8 +61,8 @@ export class PetController {
   dispatch(command: PetCommand, now: number): Promise<PetSnapshot> {
     return this.commandQueue.enqueue(() => {
       switch (command.type) {
-        case "cancelJob":
-          this.commit(cancelActiveJob(this.state), now);
+        case "cancelActivity":
+          this.commit(cancelActiveActivity(this.state), now);
           break;
         case "pet":
           this.commit(
@@ -72,6 +81,18 @@ export class PetController {
           break;
         case "startJob":
           this.commit(startPrototypeJob(this.state, now), now);
+          break;
+        case "startRest":
+          this.commit(
+            startPrototypeRest(this.state, now, this.activityBonuses),
+            now,
+          );
+          break;
+        case "startStudy":
+          this.commit(
+            startPrototypeStudy(this.state, now, this.activityBonuses),
+            now,
+          );
           break;
         case "walk":
           if (this.state.activity === null) {
@@ -94,7 +115,13 @@ export class PetController {
 
   settleForCleanShutdown(elapsedMs: number, now: number): PetSnapshot {
     this.commit(advancePetState(this.state, elapsedMs, now));
-    this.commit(cancelActiveJob(this.state));
+    this.commit(cancelActiveActivity(this.state));
+    return this.getSnapshot();
+  }
+
+  settleForInterruption(elapsedMs: number, now: number): PetSnapshot {
+    this.commit(advancePetState(this.state, elapsedMs, now));
+    this.commit(cancelActiveActivity(this.state));
     return this.getSnapshot();
   }
 
@@ -107,6 +134,7 @@ export class PetController {
     const nextVersion = baseVersion + 1;
     const changes: PetMutableState = {
       activity: nextState.activity,
+      knowledge: nextState.knowledge,
       mastery: nextState.mastery,
       needs: nextState.needs,
       presentation: nextState.presentation,
