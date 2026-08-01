@@ -5,6 +5,8 @@ const FALLBACKS: Readonly<Record<Presentation, readonly string[]>> =
     dragged: ["dragged", "idle"],
     idle: ["idle"],
     petted: ["petted", "idle"],
+    resting: ["resting", "idle"],
+    studying: ["studying", "working", "idle"],
     walking: ["walking", "idle"],
     working: ["working", "idle"],
   });
@@ -19,4 +21,3 @@ export function resolveAnimation(
 
   return resolved ?? "static";
 }
-

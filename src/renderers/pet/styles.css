@@ -140,13 +140,18 @@ button:disabled {
 }
 
 #wallet,
-#mastery {
+#mastery,
+#knowledge {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
 
 #mastery {
+  margin-left: 0;
+}
+
+#knowledge {
   margin-left: 0;
 }
 
@@ -166,6 +171,14 @@ button:disabled {
 
 #pet-shell[data-presentation="working"] canvas {
   filter: drop-shadow(0 0 6px rgb(250 204 21 / 65%));
+}
+
+#pet-shell[data-presentation="studying"] canvas {
+  filter: drop-shadow(0 0 6px rgb(96 165 250 / 70%));
+}
+
+#pet-shell[data-presentation="resting"] canvas {
+  filter: drop-shadow(0 0 6px rgb(167 139 250 / 70%));
 }
 
 @media (prefers-reduced-motion: reduce) {

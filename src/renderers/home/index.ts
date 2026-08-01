@@ -10,6 +10,7 @@ import {
 } from "pixi.js";
 
 import spriteSheetUrl from "../../../content/core/characters/prototype-cat/idle.png";
+import { activityLabel } from "../../shared/activity-label.js";
 import {
   HOME_GRID_COLUMNS,
   HOME_GRID_ROWS,
@@ -68,6 +69,7 @@ const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-butt
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
+const knowledgeText = requiredElement<HTMLElement>("#knowledge");
 const needElements: Readonly<Record<keyof NeedState, HTMLProgressElement>> = {
   energy: requiredElement<HTMLProgressElement>("#energy"),
   hunger: requiredElement<HTMLProgressElement>("#hunger"),
@@ -199,6 +201,7 @@ function renderState(state: PetState): void {
   }
   walletText.textContent = `${state.wallet.toFixed(1)}c`;
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
+  knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;
   petVisual.tint = state.presentation === "petted" ? 0xffd6e7 : state.presentation === "working" ? 0xfff1b8 : 0xffffff;
 
@@ -208,7 +211,7 @@ function renderState(state: PetState): void {
       0,
       Math.ceil((state.activity.durationMs - state.activity.accumulatedMs) / 1000),
     );
-    workCountdown.value = `Sorting tiny files · ${seconds}s`;
+    workCountdown.value = `${activityLabel(state.activity)} · ${seconds}s`;
   }
 }
 
@@ -407,7 +410,7 @@ discardButton.addEventListener("click", () => {
 desktopButton.addEventListener("click", () => window.desktopHome.requestDesktop());
 workMenuButton.addEventListener("click", () => void openManagement("work"));
 careersMenuButton.addEventListener("click", () => void openManagement("careers"));
-cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelJob" }));
+cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelActivity" }));
 
 renderState(currentState);
 updateDirtyState();
