@@ -4,8 +4,9 @@ import { createInitialPetState } from "../simulation/pet-simulation.js";
 import { PetStateSchema } from "./contracts.js";
 
 describe("pet-state contracts", () => {
-  it("normalizes a legacy persisted job and missing knowledge state", () => {
+  it("normalizes a legacy persisted job and missing knowledge and career state", () => {
     const legacy = createInitialPetState(0) as unknown as Record<string, unknown>;
+    delete legacy.careers;
     delete legacy.knowledge;
     legacy.activity = {
       accumulatedMs: 5_000,
@@ -18,6 +19,7 @@ describe("pet-state contracts", () => {
 
     const parsed = PetStateSchema.parse(legacy);
 
+    expect(parsed.careers).toEqual({});
     expect(parsed.knowledge).toEqual({ "core:general": 0 });
     expect(parsed.activity).toEqual(expect.objectContaining({ type: "job" }));
   });

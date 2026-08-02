@@ -5,9 +5,11 @@ import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
 import {
   advancePetState,
   createInitialPetState,
+  startCareerJob,
   startPrototypeJob,
   startPrototypeStudy,
 } from "../simulation/pet-simulation.js";
+import { enrollCareer } from "../domain/career.js";
 import type { PetRepository } from "./pet-repository.js";
 import { PersistenceSession } from "./persistence-session.js";
 
@@ -67,6 +69,31 @@ describe("PersistenceSession", () => {
     expect(
       repository.records[0]?.state.knowledge["core:general"],
     ).toBeGreaterThan(0);
+  });
+
+  it("checkpoints proportional Clerk XP within the same five-second bound", () => {
+    const ready = {
+      ...createInitialPetState(0),
+      knowledge: { "core:general": 5 },
+    };
+    const initial = startCareerJob(
+      enrollCareer(ready, "core:clerk", 0),
+      0,
+      "core:clerk:organize-mail",
+    );
+    const repository = new FakeRepository();
+    const session = new PersistenceSession(
+      repository,
+      { x: 10, y: 20 },
+      initial,
+    );
+    const fiveSeconds = advancePetState(initial, 5_000, 5_000);
+
+    expect(session.maybeCheckpoint(fiveSeconds, 5_000)).toBe(true);
+    expect(repository.records[0]?.state.activity?.type).toBe("careerJob");
+    expect(
+      repository.records[0]?.state.careers["core:clerk"]?.mastery,
+    ).toBeCloseTo(10 / 3);
   });
 
   it("persists job completion immediately", () => {
