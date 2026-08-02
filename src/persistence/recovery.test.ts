@@ -15,6 +15,17 @@ import { recoverPetState } from "./recovery.js";
 const HOUR_MS = 60 * 60 * 1000;
 
 describe("pet-state recovery", () => {
+  it("uses half of the selected online care intensity offline", () => {
+    const initial = createInitialPetState(0);
+    const sandbox = recoverPetState(initial, 0, 3_600_000, true, 0);
+    const demanding = recoverPetState(initial, 0, 3_600_000, true, 1.5);
+
+    expect(sandbox.state.needs).toEqual(initial.needs);
+    expect(demanding.state.needs.hunger).toBeCloseTo(
+      initial.needs.hunger - 1.5,
+    );
+  });
+
   it("applies at most eight hours of offline decay at half rate", () => {
     const initial = createInitialPetState(1_000);
     const recovered = recoverPetState(

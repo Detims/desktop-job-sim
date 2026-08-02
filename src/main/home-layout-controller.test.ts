@@ -30,7 +30,11 @@ describe("HomeLayoutController", () => {
     });
 
     expect(result.layout.layoutVersion).toBe(1);
-    expect(storage.saveHomeLayout).toHaveBeenCalledWith(result.layout, 0);
+    expect(storage.saveHomeLayout).toHaveBeenCalledWith(
+      result.layout,
+      0,
+      expect.objectContaining({ type: "home.layout_saved" }),
+    );
     expect(controller.getSnapshot()).toEqual(result);
   });
 

@@ -24,6 +24,17 @@ import {
   type WindowPoint,
 } from "../shared/contracts.js";
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
+import {
+  ActivityPageRequestSchema,
+  UpdateSettingsCommandSchema,
+} from "../shared/settings-activity-contracts.js";
+import {
+  ACTIVITY_RETENTION_MS,
+  CARE_INTENSITY_MULTIPLIERS,
+  type AppSettings,
+  type MeaningfulEvent,
+  type MeaningfulEventDraft,
+} from "../shared/settings-activity-types.js";
 import type { PetState } from "../shared/pet-types.js";
 import { DiagnosticLogger } from "../persistence/diagnostic-logger.js";
 import { PersistenceError } from "../persistence/persistence-error.js";
@@ -35,6 +46,7 @@ import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
 import { createInitialPetState } from "../simulation/pet-simulation.js";
 import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
+import { SettingsController } from "./settings-controller.js";
 import {
   calculateInitialPetBounds,
   clampPetBoundsToWorkAreas,
@@ -59,6 +71,8 @@ let homeIsDirty = false;
 let homeCloseConfirmed = false;
 let isQuitting = false;
 let homeReadyTimeout: NodeJS.Timeout | null = null;
+let settingsController: SettingsController | null = null;
+let settingsRepository: SqlitePetRepository | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
@@ -72,6 +86,13 @@ function requireHomeLayoutController(): HomeLayoutController {
     throw new Error("Home layout controller is not initialized.");
   }
   return homeLayoutController;
+}
+
+function requireSettingsController(): SettingsController {
+  if (settingsController === null) {
+    throw new Error("Settings controller is not initialized.");
+  }
+  return settingsController;
 }
 
 function handlePersistenceFailure(error: unknown): void {
@@ -134,7 +155,61 @@ function publishPatch(patch: PetPatch): void {
   }
 }
 
+function publishToPetSurfaces(channel: string, payload: unknown): void {
+  for (const window of [petWindow, homeWindow]) {
+    if (window !== null && !window.isDestroyed()) {
+      window.webContents.send(channel, payload);
+    }
+  }
+}
+
+function publishActivityEvent(event: MeaningfulEvent): void {
+  publishToPetSurfaces(IPC_CHANNELS.activityEvent, event);
+}
+
+function publishSettings(settings: AppSettings): void {
+  publishToPetSurfaces(IPC_CHANNELS.settingsChanged, settings);
+}
+
 function registerPetIpc(): void {
+  ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized settings request.");
+    }
+    return requireSettingsController().getSnapshot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getActivityPage, (event, input: unknown) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized activity-history request.");
+    }
+    try {
+      const request = ActivityPageRequestSchema.parse(input);
+      return settingsRepository?.loadActivityPage(
+        request.before,
+        request.limit ?? 100,
+      );
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.updateSettings, (event, input: unknown) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized settings update.");
+    }
+    try {
+      return requireSettingsController().update(
+        UpdateSettingsCommandSchema.parse(input),
+        Date.now(),
+      );
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.getSnapshot, (event) => {
     if (!isPetStateSender(event)) {
       throw new Error("Unauthorized snapshot request.");
@@ -331,6 +406,26 @@ function startScheduler(): void {
   }, 1000);
 }
 
+function settlementEvent(
+  state: PetState,
+  type: "activity.shutdown_settled" | "activity.sleep_settled",
+): MeaningfulEventDraft | undefined {
+  if (state.activity === null) return undefined;
+  return {
+    details: {
+      accumulatedMs: state.activity.accumulatedMs,
+      activityType: state.activity.type,
+      definitionId: state.activity.definitionId,
+    },
+    petId: state.petId,
+    summary:
+      type === "activity.shutdown_settled"
+        ? `${state.activity.type} settled at shutdown; partial progress kept.`
+        : `${state.activity.type} settled for sleep; partial progress kept.`,
+    type,
+  };
+}
+
 function saveCleanShutdown(): void {
   if (
     cleanShutdownSaved ||
@@ -346,8 +441,12 @@ function saveCleanShutdown(): void {
       ? 0
       : Math.max(0, currentTickAt - lastTickAt);
   const now = Date.now();
+  const event = settlementEvent(
+    petController.getSnapshot().state,
+    "activity.shutdown_settled",
+  );
   const snapshot = petController.settleForCleanShutdown(elapsedMs, now);
-  persistenceSession.saveClean(snapshot.state, now);
+  persistenceSession.saveClean(snapshot.state, now, event);
   persistenceSession.close();
   cleanShutdownSaved = true;
   if (scheduler !== null) {
@@ -372,7 +471,10 @@ function createPetWindow(): BrowserWindow {
     createPetWindowOptions(preloadPath, initialBounds),
   );
 
-  window.setAlwaysOnTop(true, "floating");
+  window.setAlwaysOnTop(
+    requireSettingsController().getSnapshot().alwaysOnTop,
+    "floating",
+  );
   window.setMenuBarVisibility(false);
 
   secureWindow(window);
@@ -586,6 +688,16 @@ app.whenReady().then(() => {
       },
       diagnosticLogger,
     );
+    settingsRepository = repository;
+    const initialSettings = repository.loadSettings();
+    if (initialSettings.activityRetention === "thirtyDays") {
+      repository.pruneActivity(now - ACTIVITY_RETENTION_MS);
+    }
+    settingsController = new SettingsController(
+      initialSettings,
+      repository,
+      publishActivityEvent,
+    );
     const persisted = repository.load();
     const persistedHomeLayout = repository.loadHomeLayout();
     const initialHomeLayout = persistedHomeLayout ?? createInitialHomeLayout();
@@ -595,15 +707,23 @@ app.whenReady().then(() => {
     homeLayoutController = new HomeLayoutController(
       initialHomeLayout,
       repository,
+      publishActivityEvent,
     );
     const defaultBounds = calculateInitialPetBounds(
       screen.getPrimaryDisplay().workArea,
     );
     let initialState: PetState;
     let initialPosition = { x: defaultBounds.x, y: defaultBounds.y };
+    let startupEvent: MeaningfulEventDraft;
 
     if (persisted === null) {
       initialState = createInitialPetState(now);
+      startupEvent = {
+        details: { newProfile: true },
+        petId: initialState.petId,
+        summary: "New pet profile started.",
+        type: "startup.recovered",
+      };
       diagnosticLogger.write(
         "info",
         "database.profile_created",
@@ -615,9 +735,28 @@ app.whenReady().then(() => {
         persisted.savedAt,
         now,
         persisted.cleanExit,
+        CARE_INTENSITY_MULTIPLIERS[initialSettings.careIntensity],
       );
       initialState = recovery.state;
       initialPosition = persisted.position;
+      startupEvent =
+        !persisted.cleanExit && persisted.state.activity !== null
+          ? {
+              details: {
+                accumulatedMs: persisted.state.activity.accumulatedMs,
+                activityType: persisted.state.activity.type,
+                definitionId: persisted.state.activity.definitionId,
+              },
+              petId: persisted.state.petId,
+              summary: `${persisted.state.activity.type} recovered from its last durable checkpoint.`,
+              type: "activity.crash_recovered",
+            }
+          : {
+              details: { offlineElapsedMs: recovery.offlineElapsedMs },
+              petId: persisted.state.petId,
+              summary: "Pet state recovered at startup.",
+              type: "startup.recovered",
+            };
       for (const diagnostic of recovery.diagnostics) {
         diagnosticLogger.write(
           diagnostic.code === "recovery.clean_start" ? "info" : "warning",
@@ -636,15 +775,28 @@ app.whenReady().then(() => {
       repository,
       { x: clampedBounds.x, y: clampedBounds.y },
       initialState,
+      publishActivityEvent,
     );
-    persistenceSession.saveCommand(initialState, now);
+    persistenceSession.saveCommand(initialState, now, startupEvent);
     petController = new PetController(
       initialState,
-      (state, committedAt) => {
-        persistenceSession?.saveCommand(state, committedAt);
+      (state, committedAt, event) => {
+        persistenceSession?.saveCommand(state, committedAt, event);
       },
       resolveFurnitureBonuses(initialHomeLayout),
     );
+    petController.setPassiveNeedMultiplier(
+      CARE_INTENSITY_MULTIPLIERS[initialSettings.careIntensity],
+    );
+    settingsController.subscribe((settings) => {
+      petController?.setPassiveNeedMultiplier(
+        CARE_INTENSITY_MULTIPLIERS[settings.careIntensity],
+      );
+      if (petWindow !== null && !petWindow.isDestroyed()) {
+        petWindow.setAlwaysOnTop(settings.alwaysOnTop, "floating");
+      }
+      publishSettings(settings);
+    });
 
     registerPetIpc();
     petController.subscribe(publishPatch);
@@ -673,11 +825,15 @@ app.whenReady().then(() => {
       : Math.max(0, currentTickAt - lastTickAt);
     const now = Date.now();
     try {
+      const event = settlementEvent(
+        requirePetController().getSnapshot().state,
+        "activity.sleep_settled",
+      );
       const snapshot = requirePetController().settleForInterruption(
         elapsedMs,
         now,
       );
-      persistenceSession?.saveCommand(snapshot.state, now);
+      persistenceSession?.saveCommand(snapshot.state, now, event);
     } catch (error: unknown) {
       handlePersistenceFailure(error);
     }

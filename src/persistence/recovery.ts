@@ -3,6 +3,7 @@ import {
   applyOfflineNeedDecay,
   cancelActiveActivity,
   MAX_OFFLINE_ELAPSED_MS,
+  OFFLINE_NEED_RATE,
 } from "../simulation/pet-simulation.js";
 
 export type RecoveryDiagnosticCode =
@@ -27,6 +28,7 @@ export function recoverPetState(
   savedAt: number,
   now: number,
   cleanExit: boolean,
+  onlineNeedMultiplier = 1,
 ): RecoveryResult {
   const diagnostics: RecoveryDiagnostic[] = [];
   const rawElapsedMs = now - savedAt;
@@ -53,6 +55,7 @@ export function recoverPetState(
     cancelledState,
     offlineElapsedMs,
     now,
+    onlineNeedMultiplier * OFFLINE_NEED_RATE,
   );
   state = {
     ...state,
