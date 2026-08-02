@@ -1,0 +1,11 @@
+{
+  "careerId": "core:clerk",
+  "completionCareerXpBonus": 0,
+  "durationMs": 15000,
+  "id": "core:clerk:organize-mail",
+  "name": "Organize Mail",
+  "needCosts": { "energy": 6, "hunger": 1, "mood": 1, "thirst": 2 },
+  "requiredRankId": "core:clerk:junior",
+  "rewardCareerXp": 10,
+  "rewardCoins": 10
+}

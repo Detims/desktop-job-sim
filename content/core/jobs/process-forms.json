@@ -1,0 +1,11 @@
+{
+  "careerId": "core:clerk",
+  "completionCareerXpBonus": 0,
+  "durationMs": 20000,
+  "id": "core:clerk:process-forms",
+  "name": "Process Forms",
+  "needCosts": { "energy": 9, "hunger": 2, "mood": 2, "thirst": 3 },
+  "requiredRankId": "core:clerk:clerk",
+  "rewardCareerXp": 15,
+  "rewardCoins": 18
+}

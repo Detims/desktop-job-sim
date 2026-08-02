@@ -10,7 +10,9 @@ import {
   startPrototypeJob,
   startPrototypeRest,
   startPrototypeStudy,
+  startCareerJob,
 } from "./pet-simulation.js";
+import { CLERK_CAREER, CLERK_JOBS, enrollCareer } from "../domain/career.js";
 
 const NO_BONUSES = { restRecovery: 0, studyGain: 0 };
 const FURNITURE_BONUSES = { restRecovery: 0.05, studyGain: 0.05 };
@@ -28,6 +30,39 @@ function advanceInSteps(stepCount: number, stepMs: number) {
 }
 
 describe("pet simulation", () => {
+  it("awards proportional Clerk coins and XP without general mastery", () => {
+    const initial = createInitialPetState(0);
+    const enrolled = enrollCareer(
+      { ...initial, knowledge: { "core:general": 10 } },
+      CLERK_CAREER.id,
+      0,
+    );
+    const working = startCareerJob(enrolled, 0, CLERK_JOBS[0]!.id);
+    const halfway = advancePetState(working, 7_500, 7_500);
+
+    expect(halfway.wallet).toBeCloseTo(5);
+    expect(halfway.careers[CLERK_CAREER.id]?.mastery).toBeCloseTo(5);
+    expect(halfway.mastery).toBe(0);
+    expect(cancelActiveActivity(halfway).careers[CLERK_CAREER.id]?.mastery)
+      .toBeCloseTo(5);
+  });
+
+  it("rejects career work until its career and rank are unlocked", () => {
+    expect(() =>
+      startCareerJob(createInitialPetState(0), 0, CLERK_JOBS[0]!.id),
+    ).toThrow("still locked");
+    const enrolled = enrollCareer(
+      {
+        ...createInitialPetState(0),
+        knowledge: { "core:general": 5 },
+      },
+      CLERK_CAREER.id,
+      0,
+    );
+    expect(() => startCareerJob(enrolled, 0, CLERK_JOBS[1]!.id))
+      .toThrow("still locked");
+  });
+
   it("produces the same job result for one tick or many ticks", () => {
     const oneTick = advanceInSteps(1, PROTOTYPE_JOB.durationMs);
     const manyTicks = advanceInSteps(15, PROTOTYPE_JOB.durationMs / 15);

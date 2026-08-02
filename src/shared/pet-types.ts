@@ -5,7 +5,7 @@ export interface NeedState {
   thirst: number;
 }
 
-export type ActivityType = "job" | "rest" | "study";
+export type ActivityType = "careerJob" | "job" | "rest" | "study";
 
 export interface ActivityBonuses {
   restRecovery: number;
@@ -13,6 +13,16 @@ export interface ActivityBonuses {
 }
 
 export type KnowledgeState = Readonly<Record<string, number>>;
+
+export interface CareerProgress {
+  careerId: string;
+  enrolledAt: number;
+  mastery: number;
+  promotionReadyAt: number | null;
+  rankId: string;
+}
+
+export type CareerState = Readonly<Record<string, CareerProgress>>;
 
 export type Presentation =
   | "idle"
@@ -36,6 +46,13 @@ export interface ActiveJob extends ActiveActivityBase {
   type: "job";
 }
 
+export interface ActiveCareerJob extends ActiveActivityBase {
+  careerId: string;
+  creditedCareerXp: number;
+  creditedCoins: number;
+  type: "careerJob";
+}
+
 export interface ActiveStudy extends ActiveActivityBase {
   creditedKnowledge: number;
   gainMultiplier: number;
@@ -49,10 +66,15 @@ export interface ActiveRest extends ActiveActivityBase {
   type: "rest";
 }
 
-export type ActiveActivity = ActiveJob | ActiveRest | ActiveStudy;
+export type ActiveActivity =
+  | ActiveCareerJob
+  | ActiveJob
+  | ActiveRest
+  | ActiveStudy;
 
 export interface PetState {
   activity: ActiveActivity | null;
+  careers: CareerState;
   knowledge: KnowledgeState;
   mastery: number;
   needs: NeedState;
@@ -82,7 +104,10 @@ export interface PetPatch {
 
 export type PetCommand =
   | { type: "cancelActivity" }
+  | { careerId: string; type: "enrollCareer" }
   | { type: "pet" }
+  | { careerId: string; type: "promoteCareer" }
+  | { jobId: string; type: "startCareerJob" }
   | { type: "startJob" }
   | { type: "startRest" }
   | { type: "startStudy" }
@@ -108,6 +133,36 @@ export interface JobDefinition {
   needCosts: NeedState;
   rewardCoins: number;
   rewardMastery: number;
+}
+
+export interface CareerRankDefinition {
+  advancement: "automatic" | "enrollment" | "promotion";
+  id: string;
+  name: string;
+  requiredKnowledge: number;
+  requiredMastery: number;
+}
+
+export interface CareerDefinition {
+  enrollmentKnowledge: {
+    fieldId: string;
+    minimum: number;
+  };
+  id: string;
+  name: string;
+  ranks: readonly CareerRankDefinition[];
+}
+
+export interface CareerJobDefinition {
+  careerId: string;
+  completionCareerXpBonus: number;
+  durationMs: number;
+  id: string;
+  name: string;
+  needCosts: NeedState;
+  requiredRankId: string;
+  rewardCareerXp: number;
+  rewardCoins: number;
 }
 
 export interface StudyDefinition {
