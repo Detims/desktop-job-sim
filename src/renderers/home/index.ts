@@ -27,7 +27,9 @@ import type {
   PetState,
 } from "../../shared/pet-types.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
+import { initializePetOverlay } from "../shared/pet-overlay.js";
 import "./styles.css";
+import "../shared/pet-overlay.css";
 
 const ROOM_WIDTH = 720;
 const ROOM_HEIGHT = 480;
@@ -82,6 +84,7 @@ const [petSnapshot, layoutSnapshot] = await Promise.all([
   window.desktopHome.getLayout(),
 ]);
 let currentState: PetState = readSnapshot(petSnapshot);
+await initializePetOverlay(window.desktopHome);
 let savedLayout = cloneLayout(layoutSnapshot.layout);
 let draftLayout = cloneLayout(layoutSnapshot.layout);
 let resyncInFlight: Promise<void> | null = null;

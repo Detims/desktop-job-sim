@@ -1,0 +1,160 @@
+#pet-stats-overlay {
+  overflow: hidden;
+  padding: 0;
+}
+
+#pet-stats-overlay .overlay-content {
+  height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 9px 11px 7px;
+  scrollbar-width: thin;
+}
+
+#pet-stats-overlay .overlay-panel {
+  min-height: 100%;
+}
+
+#pet-stats-overlay .overlay-tabs {
+  border-top: 1px solid rgb(51 65 85 / 16%);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+#pet-stats-overlay .overlay-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: #475569;
+  font-size: 11px;
+  padding: 6px 4px;
+}
+
+#pet-stats-overlay .overlay-tabs button:hover,
+#pet-stats-overlay .overlay-tabs button.active {
+  background: #e2e8f0;
+  color: #0284c7;
+}
+
+#pet-stats-overlay .setting-block,
+#pet-stats-overlay .setting-row {
+  align-items: center;
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+}
+
+#pet-stats-overlay .setting-block strong {
+  color: #0284c7;
+  text-transform: capitalize;
+}
+
+#pet-stats-overlay #care-intensity-slider {
+  accent-color: #0284c7;
+  margin: 8px 0 1px;
+  width: 100%;
+}
+
+#pet-stats-overlay .slider-markers {
+  color: #64748b;
+  display: grid;
+  font-size: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+#pet-stats-overlay .slider-markers span:first-child { text-align: left; }
+#pet-stats-overlay .slider-markers span:last-child { text-align: right; }
+
+#pet-stats-overlay .setting-row {
+  border-top: 1px solid rgb(51 65 85 / 10%);
+  min-height: 29px;
+}
+
+#pet-stats-overlay .setting-row input[type="checkbox"] {
+  accent-color: #0284c7;
+  height: 15px;
+  width: 15px;
+}
+
+#pet-stats-overlay .setting-row select {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #334155;
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 4px;
+}
+
+#pet-stats-overlay .overlay-error {
+  color: #dc2626;
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+#pet-stats-overlay .activity-panel ol {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#pet-stats-overlay .activity-panel li {
+  border-bottom: 1px solid rgb(51 65 85 / 12%);
+  display: grid;
+  gap: 1px;
+  padding-bottom: 5px;
+}
+
+#pet-stats-overlay .activity-panel li span {
+  color: #334155;
+  font-size: 10px;
+}
+
+#pet-stats-overlay .activity-panel time,
+#pet-stats-overlay .empty-state {
+  color: #64748b;
+  font-size: 9px;
+}
+
+#pet-stats-overlay .empty-state {
+  margin: 25px 0;
+  text-align: center;
+}
+
+#pet-stats-overlay #load-older-activity {
+  display: block;
+  margin: 8px auto 0;
+}
+
+#pet-stats-overlay .stat-line {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 5px;
+}
+
+#pet-stats-overlay .stat-line #wallet,
+#pet-stats-overlay .stat-line #mastery,
+#pet-stats-overlay .stat-line #knowledge {
+  margin-left: 0;
+}
+
+#pet-stats-overlay .control-row {
+  flex-wrap: wrap;
+}
+
+#pet-stats-overlay button:disabled,
+#pet-stats-overlay input:disabled,
+#pet-stats-overlay select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.room-frame #pet-stats-overlay .overlay-content {
+  height: 170px;
+}

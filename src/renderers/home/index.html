@@ -28,25 +28,50 @@
           <button id="cancel-work-button" class="danger" type="button">Cancel</button>
         </section>
 
-        <section id="pet-stats-overlay" aria-label="Pet status and shortcuts" hidden>
-          <div class="stats-heading">
-            <output id="status-text" aria-live="polite"></output>
-            <span id="wallet" aria-label="Wallet"></span>
-            <span id="mastery" aria-label="Mastery"></span>
-            <span id="knowledge" aria-label="General Knowledge"></span>
+        <section id="pet-stats-overlay" aria-label="Pet menu" hidden>
+          <div class="overlay-content">
+            <div class="overlay-panel" data-overlay-panel="status">
+              <div class="stats-heading">
+                <output id="status-text" aria-live="polite"></output>
+                <span id="wallet" aria-label="Wallet"></span>
+                <span id="mastery" aria-label="Mastery"></span>
+                <span id="knowledge" aria-label="General Knowledge"></span>
+              </div>
+              <div class="needs-grid" aria-label="Pet needs">
+                <label><span>Food</span><progress id="hunger" max="100"></progress></label>
+                <label><span>Water</span><progress id="thirst" max="100"></progress></label>
+                <label><span>Mood</span><progress id="mood" max="100"></progress></label>
+                <label><span>Energy</span><progress id="energy" max="100"></progress></label>
+              </div>
+              <div class="shortcut-row">
+                <button id="desktop-button" type="button">Desktop</button>
+                <button id="walk-button" type="button" disabled title="Walking is unavailable inside Home">Walk</button>
+                <button id="work-menu-button" type="button">Work</button>
+                <button id="careers-menu-button" type="button">Careers</button>
+              </div>
+            </div>
+
+            <div class="overlay-panel" data-overlay-panel="settings" hidden>
+              <label class="setting-block" for="care-intensity-slider"><span>Care intensity</span><strong id="care-intensity-value">Balanced</strong></label>
+              <input id="care-intensity-slider" type="range" min="0" max="3" step="1" value="2" />
+              <div class="slider-markers" aria-hidden="true"><span>Sandbox</span><span>Relaxed</span><span>Balanced</span><span>Demanding</span></div>
+              <label class="setting-row"><span>Always on top</span><input id="always-on-top" type="checkbox" /></label>
+              <label class="setting-row" for="activity-retention"><span>Activity history</span><select id="activity-retention"><option value="thirtyDays">30 days</option><option value="indefinite">Keep indefinitely</option></select></label>
+              <output id="settings-error" class="overlay-error" aria-live="polite"></output>
+            </div>
+
+            <div class="overlay-panel activity-panel" data-overlay-panel="activity" hidden>
+              <ol id="activity-list" aria-live="polite"></ol>
+              <p id="activity-empty" class="empty-state">No recorded activity yet.</p>
+              <button id="load-older-activity" type="button" hidden>Load older</button>
+              <output id="activity-error" class="overlay-error" aria-live="polite"></output>
+            </div>
           </div>
-          <div class="needs-grid" aria-label="Pet needs">
-            <label><span>Food</span><progress id="hunger" max="100"></progress></label>
-            <label><span>Water</span><progress id="thirst" max="100"></progress></label>
-            <label><span>Mood</span><progress id="mood" max="100"></progress></label>
-            <label><span>Energy</span><progress id="energy" max="100"></progress></label>
-          </div>
-          <div class="shortcut-row">
-            <button id="desktop-button" type="button">Desktop</button>
-            <button id="walk-button" type="button" disabled title="Walking is unavailable inside Home">Walk</button>
-            <button id="work-menu-button" type="button">Work</button>
-            <button id="careers-menu-button" type="button">Careers</button>
-          </div>
+          <nav class="overlay-tabs" aria-label="Pet menu tabs">
+            <button class="active" data-overlay-tab="status" type="button">Status</button>
+            <button data-overlay-tab="settings" type="button">Settings</button>
+            <button data-overlay-tab="activity" type="button">Activity</button>
+          </nav>
         </section>
       </section>
     </main>
