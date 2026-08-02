@@ -18,6 +18,7 @@ import {
   type CareerProgress,
   type PetState,
 } from "../shared/contracts.js";
+import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 
 export const CLERK_CAREER = CareerDefinitionSchema.parse(rawClerk);
 export const CLERK_JOBS = Object.freeze(
@@ -223,4 +224,56 @@ export function isCareerJobUnlocked(
     progress !== undefined &&
     rankIndex(career, progress.rankId) >= rankIndex(career, job.requiredRankId)
   );
+}
+
+export function careerEventDrafts(
+  before: PetState,
+  after: PetState,
+): MeaningfulEventDraft[] {
+  const events: MeaningfulEventDraft[] = [];
+  for (const [careerId, next] of Object.entries(after.careers)) {
+    const career = careers.get(careerId);
+    if (career === undefined) continue;
+    const previous = before.careers[careerId];
+    if (previous === undefined) {
+      const rank = career.ranks[rankIndex(career, next.rankId)];
+      events.push({
+        details: { careerId, rankId: next.rankId },
+        petId: after.petId,
+        summary: `Started the ${career.name} career as ${rank?.name ?? next.rankId}.`,
+        type: "career.enrolled",
+      });
+      continue;
+    }
+    if (previous.rankId !== next.rankId) {
+      const rank = career.ranks[rankIndex(career, next.rankId)];
+      events.push({
+        details: {
+          careerId,
+          fromRankId: previous.rankId,
+          toRankId: next.rankId,
+        },
+        petId: after.petId,
+        summary: `${career.name} rank advanced to ${rank?.name ?? next.rankId}.`,
+        type:
+          rank?.advancement === "promotion"
+            ? "career.promoted"
+            : "career.advanced",
+      });
+    }
+    if (
+      previous.promotionReadyAt === null &&
+      next.promotionReadyAt !== null
+    ) {
+      const currentIndex = rankIndex(career, next.rankId);
+      const target = career.ranks[currentIndex + 1];
+      events.push({
+        details: { careerId, targetRankId: target?.id ?? "unknown" },
+        petId: after.petId,
+        summary: `${career.name} promotion to ${target?.name ?? "the next rank"} is ready.`,
+        type: "career.promotion_ready",
+      });
+    }
+  }
+  return events;
 }

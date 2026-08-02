@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PersistedPetRecord } from "../shared/pet-types.js";
+import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
 import {
   advancePetState,
   createInitialPetState,
@@ -11,6 +12,7 @@ import type { PetRepository } from "./pet-repository.js";
 import { PersistenceSession } from "./persistence-session.js";
 
 class FakeRepository implements PetRepository {
+  readonly events: MeaningfulEvent[] = [];
   readonly records: PersistedPetRecord[] = [];
 
   close(): void {}
@@ -19,8 +21,12 @@ class FakeRepository implements PetRepository {
     return this.records.at(-1) ?? null;
   }
 
-  save(record: PersistedPetRecord): void {
+  save(
+    record: PersistedPetRecord,
+    events: readonly MeaningfulEvent[] = [],
+  ): void {
     this.records.push(structuredClone(record));
+    this.events.push(...structuredClone(events));
   }
 }
 
@@ -75,5 +81,29 @@ describe("PersistenceSession", () => {
 
     expect(session.maybeCheckpoint(completed, 15_000)).toBe(true);
     expect(repository.records[0]?.state.activity).toBeNull();
+  });
+
+  it("materializes and publishes multiple events from one durable save", () => {
+    const initial = createInitialPetState(0);
+    const repository = new FakeRepository();
+    const published: MeaningfulEvent[] = [];
+    const session = new PersistenceSession(
+      repository,
+      { x: 10, y: 20 },
+      initial,
+      (event) => published.push(event),
+    );
+
+    session.saveCommand(initial, 100, [
+      { summary: "Advanced.", type: "career.advanced" },
+      { summary: "Promotion ready.", type: "career.promotion_ready" },
+    ]);
+
+    expect(repository.records).toHaveLength(1);
+    expect(repository.events.map((event) => event.type)).toEqual([
+      "career.advanced",
+      "career.promotion_ready",
+    ]);
+    expect(published).toEqual(repository.events);
   });
 });

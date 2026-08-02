@@ -1,5 +1,10 @@
 import { SequentialCommandQueue } from "../domain/command-queue.js";
 import {
+  careerEventDrafts,
+  enrollCareer,
+  promoteCareer,
+} from "../domain/career.js";
+import {
   type ActivityBonuses,
   type PetCommand,
   type PetMutableState,
@@ -11,6 +16,7 @@ import {
   advancePetState,
   cancelActiveActivity,
   createInitialPetState,
+  startCareerJob,
   startPrototypeJob,
   startPrototypeRest,
   startPrototypeStudy,
@@ -22,7 +28,7 @@ type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (
   state: PetState,
   now: number,
-  event?: MeaningfulEventDraft,
+  events?: readonly MeaningfulEventDraft[],
 ) => void;
 
 export class PetController {
@@ -64,6 +70,7 @@ export class PetController {
   }
 
   tick(elapsedMs: number, now: number): PetSnapshot {
+    const priorState = this.state;
     const priorActivity = this.state.activity;
     const next = advancePetState(
       this.state,
@@ -71,11 +78,9 @@ export class PetController {
       now,
       this.passiveNeedMultiplier,
     );
-    this.commit(
-      next,
-      priorActivity !== null && next.activity === null ? now : undefined,
-      priorActivity !== null && next.activity === null
-        ? {
+    const events = careerEventDrafts(priorState, next);
+    if (priorActivity !== null && next.activity === null) {
+      events.unshift({
             details: {
               activityType: priorActivity.type,
               definitionId: priorActivity.definitionId,
@@ -83,9 +88,9 @@ export class PetController {
             petId: this.state.petId,
             summary: `${priorActivity.type} completed.`,
             type: "activity.completed",
-          }
-        : undefined,
-    );
+          });
+    }
+    this.commit(next, events.length > 0 ? now : undefined, events);
     return this.getSnapshot();
   }
 
@@ -98,7 +103,7 @@ export class PetController {
             now,
             this.state.activity === null
               ? undefined
-              : {
+              : [{
                   details: {
                     accumulatedMs: this.state.activity.accumulatedMs,
                     activityType: this.state.activity.type,
@@ -107,9 +112,14 @@ export class PetController {
                   petId: this.state.petId,
                   summary: `${this.state.activity.type} cancelled; partial progress kept.`,
                   type: "activity.cancelled",
-                },
+                }],
           );
           break;
+        case "enrollCareer": {
+          const next = enrollCareer(this.state, command.careerId, now);
+          this.commit(next, now, careerEventDrafts(this.state, next));
+          break;
+        }
         case "pet":
           this.commit(
             {
@@ -131,7 +141,7 @@ export class PetController {
             next,
             now,
             this.state.activity === null && next.activity?.type === "job"
-              ? this.startEvent("job", next.activity.definitionId)
+              ? [this.startEvent("job", next.activity.definitionId)]
               : undefined,
           );
           break;
@@ -146,7 +156,7 @@ export class PetController {
             next,
             now,
             this.state.activity === null && next.activity?.type === "rest"
-              ? this.startEvent("rest", next.activity.definitionId)
+              ? [this.startEvent("rest", next.activity.definitionId)]
               : undefined,
           );
           break;
@@ -161,7 +171,23 @@ export class PetController {
             next,
             now,
             this.state.activity === null && next.activity?.type === "study"
-              ? this.startEvent("study", next.activity.definitionId)
+              ? [this.startEvent("study", next.activity.definitionId)]
+              : undefined,
+          );
+          break;
+        }
+        case "promoteCareer": {
+          const next = promoteCareer(this.state, command.careerId);
+          this.commit(next, now, careerEventDrafts(this.state, next));
+          break;
+        }
+        case "startCareerJob": {
+          const next = startCareerJob(this.state, now, command.jobId);
+          this.commit(
+            next,
+            now,
+            this.state.activity === null && next.activity?.type === "careerJob"
+              ? [this.startEvent("careerJob", next.activity.definitionId)]
               : undefined,
           );
           break;
@@ -202,7 +228,7 @@ export class PetController {
   }
 
   private startEvent(
-    activityType: "job" | "rest" | "study",
+    activityType: "careerJob" | "job" | "rest" | "study",
     definitionId: string,
   ): MeaningfulEventDraft {
     return {
@@ -216,7 +242,7 @@ export class PetController {
   private commit(
     nextState: PetState,
     durableAt?: number,
-    event?: MeaningfulEventDraft,
+    events?: readonly MeaningfulEventDraft[],
   ): void {
     if (nextState === this.state) {
       return;
@@ -226,6 +252,7 @@ export class PetController {
     const nextVersion = baseVersion + 1;
     const changes: PetMutableState = {
       activity: nextState.activity,
+      careers: nextState.careers,
       knowledge: nextState.knowledge,
       mastery: nextState.mastery,
       needs: nextState.needs,
@@ -243,7 +270,7 @@ export class PetController {
     };
 
     if (durableAt !== undefined) {
-      this.durableCommit?.(committedState, durableAt, event);
+      this.durableCommit?.(committedState, durableAt, events);
     }
 
     this.state = committedState;

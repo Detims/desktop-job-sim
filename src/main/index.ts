@@ -43,6 +43,7 @@ import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
 import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
+import { careerEventDrafts } from "../domain/career.js";
 import { createInitialPetState } from "../simulation/pet-simulation.js";
 import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
@@ -441,12 +442,15 @@ function saveCleanShutdown(): void {
       ? 0
       : Math.max(0, currentTickAt - lastTickAt);
   const now = Date.now();
+  const before = petController.getSnapshot().state;
   const event = settlementEvent(
-    petController.getSnapshot().state,
+    before,
     "activity.shutdown_settled",
   );
   const snapshot = petController.settleForCleanShutdown(elapsedMs, now);
-  persistenceSession.saveClean(snapshot.state, now, event);
+  const events = careerEventDrafts(before, snapshot.state);
+  if (event !== undefined) events.unshift(event);
+  persistenceSession.saveClean(snapshot.state, now, events);
   persistenceSession.close();
   cleanShutdownSaved = true;
   if (scheduler !== null) {
@@ -825,15 +829,18 @@ app.whenReady().then(() => {
       : Math.max(0, currentTickAt - lastTickAt);
     const now = Date.now();
     try {
+      const before = requirePetController().getSnapshot().state;
       const event = settlementEvent(
-        requirePetController().getSnapshot().state,
+        before,
         "activity.sleep_settled",
       );
       const snapshot = requirePetController().settleForInterruption(
         elapsedMs,
         now,
       );
-      persistenceSession?.saveCommand(snapshot.state, now, event);
+      const events = careerEventDrafts(before, snapshot.state);
+      if (event !== undefined) events.unshift(event);
+      persistenceSession?.saveCommand(snapshot.state, now, events);
     } catch (error: unknown) {
       handlePersistenceFailure(error);
     }
