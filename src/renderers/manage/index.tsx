@@ -7,6 +7,18 @@ import prototypeJob from "../../../content/core/jobs/prototype-job.json" with {
 import prototypeStudy from "../../../content/core/activities/study.json" with {
   type: "json",
 };
+import clerkCareer from "../../../content/core/careers/clerk.json" with {
+  type: "json",
+};
+import auditRecords from "../../../content/core/jobs/audit-records.json" with {
+  type: "json",
+};
+import organizeMail from "../../../content/core/jobs/organize-mail.json" with {
+  type: "json",
+};
+import processForms from "../../../content/core/jobs/process-forms.json" with {
+  type: "json",
+};
 import { activityLabel } from "../../shared/activity-label.js";
 import type {
   ManagementTab,
@@ -15,6 +27,12 @@ import type {
 } from "../../shared/pet-types.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import "./styles.css";
+
+const clerkJobs = [organizeMail, processForms, auditRecords] as const;
+
+function clerkRankIndex(rankId: string): number {
+  return clerkCareer.ranks.findIndex((rank) => rank.id === rankId);
+}
 
 function usePetState() {
   const [state, setState] = useState<PetState | null>(null);
@@ -70,9 +88,11 @@ function usePetState() {
 
 function WorkTab({
   dispatch,
+  openCareers,
   state,
 }: {
   dispatch(command: PetCommand): Promise<void>;
+  openCareers(): void;
   state: PetState;
 }) {
   const activity = state.activity;
@@ -95,6 +115,7 @@ function WorkTab({
   const deskMultiplier = 0.05;
   const expectedStudyGain =
     prototypeStudy.rewardKnowledge * (moodMultiplier + deskMultiplier);
+  const clerk = state.careers[clerkCareer.id];
 
   return (
     <section className="tab-panel" aria-labelledby="work-tab">
@@ -123,6 +144,9 @@ function WorkTab({
           <div className="activity-line earnings">
             <span>{state.wallet.toFixed(1)} coins</span>
             <span>{state.mastery.toFixed(1)} mastery</span>
+            {clerk !== undefined && (
+              <span>{clerk.mastery.toFixed(1)} Clerk XP</span>
+            )}
             <span>{generalKnowledge.toFixed(1)} knowledge</span>
           </div>
           <div className="actions compact">
@@ -207,50 +231,177 @@ function WorkTab({
           </button>
         </div>
       </article>
+
+      {clerk === undefined ? (
+        <article className="work-category locked-career">
+          <header className="section-heading">
+            <div>
+              <p className="eyebrow">Career Jobs</p>
+              <h2>Clerk</h2>
+            </div>
+            <span className="status locked">Career locked</span>
+          </header>
+          <p className="description">
+            Join the Clerk career before its ranked jobs appear here. Career
+            enrollment is managed in Careers.
+          </p>
+          <div className="actions">
+            <button className="secondary" onClick={openCareers} type="button">
+              Go to Careers
+            </button>
+          </div>
+        </article>
+      ) : (
+        <article className="work-category">
+          <header className="section-heading">
+            <div>
+              <p className="eyebrow">Career Jobs</p>
+              <h2>Clerk Office</h2>
+            </div>
+            <span className="status idle">
+              {clerkCareer.ranks[clerkRankIndex(clerk.rankId)]?.name}
+            </span>
+          </header>
+          <p className="description">
+            Clerk jobs award proportional coins and Clerk XP. Previously
+            unlocked jobs remain available after ranking up.
+          </p>
+          <div className="job-list">
+            {clerkJobs.map((job) => {
+              const requiredRank = clerkCareer.ranks.find(
+                (rank) => rank.id === job.requiredRankId,
+              );
+              const unlocked =
+                clerkRankIndex(clerk.rankId) >=
+                clerkRankIndex(job.requiredRankId);
+              return (
+                <article className={unlocked ? "job-card" : "job-card locked"} key={job.id}>
+                  <div>
+                    <p className="eyebrow">{requiredRank?.name}</p>
+                    <h3>{job.name}</h3>
+                    <p>
+                      {job.durationMs / 1000}s · {job.rewardCoins} coins · {job.rewardCareerXp} Clerk XP
+                    </p>
+                    {!unlocked && <small>Requires {requiredRank?.name}</small>}
+                  </div>
+                  <button
+                    className="primary"
+                    disabled={!unlocked || !canStart}
+                    onClick={() => void dispatch({ jobId: job.id, type: "startCareerJob" })}
+                    type="button"
+                  >
+                    {unlocked ? "Start job" : "Locked"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </article>
+      )}
     </section>
   );
 }
 
-function CareersTab({ state }: { state: PetState }) {
+function CareersTab({
+  dispatch,
+  state,
+}: {
+  dispatch(command: PetCommand): Promise<void>;
+  state: PetState;
+}) {
+  const generalKnowledge =
+    state.knowledge[clerkCareer.enrollmentKnowledge.fieldId] ?? 0;
+  const clerk = state.careers[clerkCareer.id];
+  const canEnroll =
+    clerk === undefined &&
+    generalKnowledge >= clerkCareer.enrollmentKnowledge.minimum;
+  const currentRankIndex = clerk === undefined ? -1 : clerkRankIndex(clerk.rankId);
+  const currentRank = clerkCareer.ranks[currentRankIndex];
+  const nextRank = clerkCareer.ranks[currentRankIndex + 1];
+
   return (
     <section className="tab-panel" aria-labelledby="careers-tab">
       <header className="section-heading">
         <div>
-          <p className="eyebrow">Current path</p>
-          <h2>Student</h2>
+          <p className="eyebrow">Career path</p>
+          <h2>Clerk</h2>
         </div>
-        <span className="status idle">Foundation</span>
+        <span className={clerk === undefined ? "status locked" : "status active"}>
+          {currentRank?.name ?? "Not started"}
+        </span>
       </header>
 
       <p className="description">
-        The prototype pet begins as a student. Work mastery contributes to
-        future career readiness, but advanced professions and exams are not part
-        of this vertical slice.
+        Build General Knowledge, join the Clerk career, then earn separate
+        Clerk XP through ranked office jobs.
       </p>
 
       <div className="career-summary">
         <article>
-          <span>Total mastery</span>
-          <strong>{state.mastery.toFixed(1)}</strong>
-        </article>
-        <article>
-          <span>Current activity</span>
-          <strong>{state.activity === null ? "None" : prototypeJob.name}</strong>
-        </article>
-        <article>
-          <span>Career stage</span>
-          <strong>Student</strong>
-        </article>
-        <article>
           <span>General Knowledge</span>
-          <strong>{(state.knowledge["core:general"] ?? 0).toFixed(1)}</strong>
+          <strong>{generalKnowledge.toFixed(1)}</strong>
+        </article>
+        <article>
+          <span>Clerk XP</span>
+          <strong>{(clerk?.mastery ?? 0).toFixed(1)}</strong>
+        </article>
+        <article>
+          <span>Current rank</span>
+          <strong>{currentRank?.name ?? "None"}</strong>
         </article>
       </div>
 
-      <aside className="future-note">
-        Career branches, qualifications, exams, and profession rewards will be
-        introduced only after the current vertical-slice gate passes.
-      </aside>
+      {clerk === undefined ? (
+        <div className="career-action">
+          <div>
+            <h3>Start the Clerk career</h3>
+            <p>
+              Requires {clerkCareer.enrollmentKnowledge.minimum} General Knowledge
+              ({generalKnowledge.toFixed(1)} earned).
+            </p>
+          </div>
+          <button
+            className="primary"
+            disabled={!canEnroll}
+            onClick={() => void dispatch({ careerId: clerkCareer.id, type: "enrollCareer" })}
+            type="button"
+          >
+            Start Career
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="rank-ladder">
+            {clerkCareer.ranks.map((rank, index) => (
+              <article className={index <= currentRankIndex ? "rank-card reached" : "rank-card"} key={rank.id}>
+                <span>{rank.advancement === "promotion" ? "Promotion" : rank.advancement === "automatic" ? "Automatic" : "Joined"}</span>
+                <strong>{rank.name}</strong>
+                <small>{rank.requiredMastery} XP · {rank.requiredKnowledge} knowledge</small>
+              </article>
+            ))}
+          </div>
+          {nextRank !== undefined && (
+            <div className="career-action">
+              <div>
+                <h3>{clerk.promotionReadyAt === null ? `Next: ${nextRank.name}` : `${nextRank.name} promotion ready`}</h3>
+                <p>
+                  {clerk.mastery.toFixed(1)} / {nextRank.requiredMastery} Clerk XP · {generalKnowledge.toFixed(1)} / {nextRank.requiredKnowledge} knowledge
+                </p>
+              </div>
+              {nextRank.advancement === "promotion" && (
+                <button
+                  className="primary"
+                  disabled={clerk.promotionReadyAt === null}
+                  onClick={() => void dispatch({ careerId: clerkCareer.id, type: "promoteCareer" })}
+                  type="button"
+                >
+                  Promote
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
@@ -303,9 +454,13 @@ function App() {
 
       {error !== null && <div className="error-banner">{error}</div>}
       {activeTab === "work" ? (
-        <WorkTab dispatch={dispatch} state={state} />
+        <WorkTab
+          dispatch={dispatch}
+          openCareers={() => setActiveTab("careers")}
+          state={state}
+        />
       ) : (
-        <CareersTab state={state} />
+        <CareersTab dispatch={dispatch} state={state} />
       )}
     </main>
   );
