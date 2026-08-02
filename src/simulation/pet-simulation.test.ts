@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   advancePetState,
-  cancelActiveJob,
+  cancelActiveActivity,
   createInitialPetState,
+  PROTOTYPE_REST,
+  PROTOTYPE_STUDY,
   PROTOTYPE_JOB,
   startPrototypeJob,
+  startPrototypeRest,
+  startPrototypeStudy,
 } from "./pet-simulation.js";
+
+const NO_BONUSES = { restRecovery: 0, studyGain: 0 };
+const FURNITURE_BONUSES = { restRecovery: 0.05, studyGain: 0.05 };
 
 function advanceInSteps(stepCount: number, stepMs: number) {
   let now = 1_000;
@@ -44,7 +51,7 @@ describe("pet simulation", () => {
       PROTOTYPE_JOB.durationMs / 2,
       startedAt + PROTOTYPE_JOB.durationMs / 2,
     );
-    const cancelled = cancelActiveJob(halfway);
+    const cancelled = cancelActiveActivity(halfway);
     const later = advancePetState(
       cancelled,
       PROTOTYPE_JOB.durationMs,
@@ -86,5 +93,112 @@ describe("pet simulation", () => {
       expect(value).toBeGreaterThanOrEqual(0);
       expect(value).toBeLessThanOrEqual(100);
     }
+  });
+
+  it("applies the desk bonus additively to the neutral mood multiplier", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, mood: 50 },
+    };
+    const withoutDesk = advancePetState(
+      startPrototypeStudy(initial, 0, NO_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+    const withDesk = advancePetState(
+      startPrototypeStudy(initial, 0, FURNITURE_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+
+    expect(withoutDesk.knowledge["core:general"]).toBeCloseTo(10);
+    expect(withDesk.knowledge["core:general"]).toBeCloseTo(10.5);
+    expect(withDesk.activity).toBeNull();
+  });
+
+  it("produces the same study result for one tick or many ticks", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, mood: 50 },
+    };
+    const oneTick = advancePetState(
+      startPrototypeStudy(initial, 0, FURNITURE_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+    let manyTicks = startPrototypeStudy(initial, 0, FURNITURE_BONUSES);
+    for (let second = 1; second <= 15; second += 1) {
+      manyTicks = advancePetState(manyTicks, 1_000, second * 1_000);
+    }
+
+    expect(manyTicks.knowledge["core:general"]).toBeCloseTo(
+      oneTick.knowledge["core:general"] ?? 0,
+      8,
+    );
+    for (const need of Object.keys(oneTick.needs) as Array<
+      keyof typeof oneTick.needs
+    >) {
+      expect(manyTicks.needs[need]).toBeCloseTo(oneTick.needs[need], 8);
+    }
+  });
+
+  it("applies the bed bonus to gross rest recovery with deterministic ticks", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, energy: 70 },
+    };
+    const oneTick = advancePetState(
+      startPrototypeRest(initial, 0, FURNITURE_BONUSES),
+      PROTOTYPE_REST.durationMs,
+      PROTOTYPE_REST.durationMs,
+    );
+    let manyTicks = startPrototypeRest(initial, 0, FURNITURE_BONUSES);
+    for (let second = 1; second <= 15; second += 1) {
+      manyTicks = advancePetState(manyTicks, 1_000, second * 1_000);
+    }
+    const passiveDecay = 1.5 * (PROTOTYPE_REST.durationMs / 3_600_000);
+
+    expect(oneTick.needs.energy).toBeCloseTo(70 + 15.75 - passiveDecay, 8);
+    expect(manyTicks.needs.energy).toBeCloseTo(oneTick.needs.energy, 8);
+    expect(manyTicks.activity).toBeNull();
+  });
+
+  it("stops rest early when recovery reaches full energy", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, energy: 99 },
+    };
+    const rested = advancePetState(
+      startPrototypeRest(initial, 0, FURNITURE_BONUSES),
+      1_000,
+      1_000,
+    );
+
+    expect(rested.activity).toBeNull();
+    expect(rested.statusText).toBe("Fully rested.");
+    expect(rested.needs.energy).toBeGreaterThan(99.99);
+    expect(rested.needs.energy).toBeLessThanOrEqual(100);
+  });
+
+  it("keeps proportional study and rest gains after cancellation", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, energy: 50, mood: 50 },
+    };
+    const studied = advancePetState(
+      startPrototypeStudy(initial, 0, FURNITURE_BONUSES),
+      7_500,
+      7_500,
+    );
+    const rested = advancePetState(
+      startPrototypeRest(initial, 0, FURNITURE_BONUSES),
+      7_500,
+      7_500,
+    );
+
+    expect(
+      cancelActiveActivity(studied).knowledge["core:general"],
+    ).toBeCloseTo(5.25);
+    expect(cancelActiveActivity(rested).needs.energy).toBeGreaterThan(57.8);
   });
 });

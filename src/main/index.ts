@@ -31,6 +31,7 @@ import { PersistenceSession } from "../persistence/persistence-session.js";
 import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
 import { createInitialHomeLayout } from "../domain/home-layout.js";
+import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
 import { createInitialPetState } from "../simulation/pet-simulation.js";
 import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
@@ -192,9 +193,13 @@ function registerPetIpc(): void {
         throw new Error("Unauthorized Home-layout save.");
       }
       try {
-        return requireHomeLayoutController().save(
+        const snapshot = requireHomeLayoutController().save(
           SaveHomeLayoutCommandSchema.parse(input),
         );
+        requirePetController().setActivityBonuses(
+          resolveFurnitureBonuses(snapshot.layout),
+        );
+        return snapshot;
       } catch (error: unknown) {
         if (
           error instanceof PersistenceError &&
@@ -633,9 +638,13 @@ app.whenReady().then(() => {
       initialState,
     );
     persistenceSession.saveCommand(initialState, now);
-    petController = new PetController(initialState, (state, committedAt) => {
-      persistenceSession?.saveCommand(state, committedAt);
-    });
+    petController = new PetController(
+      initialState,
+      (state, committedAt) => {
+        persistenceSession?.saveCommand(state, committedAt);
+      },
+      resolveFurnitureBonuses(initialHomeLayout),
+    );
 
     registerPetIpc();
     petController.subscribe(publishPatch);
@@ -658,6 +667,21 @@ app.whenReady().then(() => {
   }
 
   powerMonitor.on("suspend", () => {
+    const currentTickAt = performance.now();
+    const elapsedMs = simulationPaused
+      ? 0
+      : Math.max(0, currentTickAt - lastTickAt);
+    const now = Date.now();
+    try {
+      const snapshot = requirePetController().settleForInterruption(
+        elapsedMs,
+        now,
+      );
+      persistenceSession?.saveCommand(snapshot.state, now);
+    } catch (error: unknown) {
+      handlePersistenceFailure(error);
+    }
+    lastTickAt = currentTickAt;
     simulationPaused = true;
   });
 

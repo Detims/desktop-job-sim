@@ -226,6 +226,16 @@ h2 {
   margin-top: 20px;
 }
 
+.actions.compact {
+  margin-top: 10px;
+}
+
+.work-category {
+  border-top: 1px solid #ded8cb;
+  margin-top: 24px;
+  padding-top: 22px;
+}
+
 .actions button {
   border: 0;
   border-radius: 9px;
@@ -289,4 +299,3 @@ button:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 }
-

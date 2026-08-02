@@ -4,7 +4,11 @@ import {
   advancePetState,
   createInitialPetState,
   PROTOTYPE_JOB,
+  PROTOTYPE_REST,
+  PROTOTYPE_STUDY,
   startPrototypeJob,
+  startPrototypeRest,
+  startPrototypeStudy,
 } from "../simulation/pet-simulation.js";
 import { recoverPetState } from "./recovery.js";
 
@@ -71,5 +75,62 @@ describe("pet-state recovery", () => {
     expect(recovered.diagnostics.map(({ code }) => code)).toContain(
       "recovery.crash_settled",
     );
+  });
+
+  it("recovers only checkpointed study knowledge after a crash", () => {
+    const startedAt = 1_000;
+    const initial = {
+      ...createInitialPetState(startedAt),
+      needs: { ...createInitialPetState(startedAt).needs, mood: 50 },
+    };
+    const studying = startPrototypeStudy(initial, startedAt, {
+      restRecovery: 0.05,
+      studyGain: 0.05,
+    });
+    const checkpoint = advancePetState(
+      studying,
+      5_000,
+      startedAt + 5_000,
+    );
+    const recovered = recoverPetState(
+      checkpoint,
+      startedAt + 5_000,
+      startedAt + 7_000,
+      false,
+    );
+
+    expect(recovered.state.activity).toBeNull();
+    expect(recovered.state.knowledge["core:general"]).toBeCloseTo(
+      (PROTOTYPE_STUDY.rewardKnowledge * 1.05) / 3,
+    );
+  });
+
+  it("does not continue rest beyond its latest crash checkpoint", () => {
+    const startedAt = 1_000;
+    const initial = {
+      ...createInitialPetState(startedAt),
+      needs: { ...createInitialPetState(startedAt).needs, energy: 50 },
+    };
+    const resting = startPrototypeRest(initial, startedAt, {
+      restRecovery: 0.05,
+      studyGain: 0.05,
+    });
+    const checkpoint = advancePetState(
+      resting,
+      5_000,
+      startedAt + 5_000,
+    );
+    const recovered = recoverPetState(
+      checkpoint,
+      startedAt + 5_000,
+      startedAt + 7_000,
+      false,
+    );
+
+    expect(recovered.state.activity).toBeNull();
+    expect(recovered.state.needs.energy).toBeLessThan(
+      50 + PROTOTYPE_REST.recoveryEnergy * 1.05,
+    );
+    expect(recovered.state.needs.energy).toBeLessThan(checkpoint.needs.energy);
   });
 });

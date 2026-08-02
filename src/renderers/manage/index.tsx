@@ -4,6 +4,10 @@ import { createRoot } from "react-dom/client";
 import prototypeJob from "../../../content/core/jobs/prototype-job.json" with {
   type: "json",
 };
+import prototypeStudy from "../../../content/core/activities/study.json" with {
+  type: "json",
+};
+import { activityLabel } from "../../shared/activity-label.js";
 import type {
   ManagementTab,
   PetCommand,
@@ -72,13 +76,14 @@ function WorkTab({
   state: PetState;
 }) {
   const activity = state.activity;
+  const generalKnowledge = state.knowledge["core:general"] ?? 0;
   const progress =
     activity === null
       ? 0
       : Math.min(100, (activity.accumulatedMs / activity.durationMs) * 100);
   const remainingSeconds =
     activity === null
-      ? Math.ceil(prototypeJob.durationMs / 1000)
+      ? 0
       : Math.max(
           0,
           Math.ceil(
@@ -86,79 +91,112 @@ function WorkTab({
           ),
         );
   const canStart = activity === null && state.needs.energy >= 10;
+  const moodMultiplier = 0.75 + state.needs.mood / 200;
+  const deskMultiplier = 0.05;
+  const expectedStudyGain =
+    prototypeStudy.rewardKnowledge * (moodMultiplier + deskMultiplier);
 
   return (
     <section className="tab-panel" aria-labelledby="work-tab">
       <header className="section-heading">
         <div>
-          <p className="eyebrow">Available work</p>
-          <h2>{prototypeJob.name}</h2>
+          <p className="eyebrow">Activities</p>
+          <h2>Work &amp; Study</h2>
         </div>
         <span className={activity === null ? "status idle" : "status active"}>
-          {activity === null ? "Available" : "In progress"}
+          {activity === null ? "Available" : activityLabel(activity)}
         </span>
       </header>
 
       <p className="description">
-        A short student job used to build foundational work habits and mastery.
-        Rewards are earned continuously; completion grants an extra mastery
-        bonus.
+        Choose one major activity at a time. Progress is earned continuously,
+        and cancellation keeps the amount already earned.
       </p>
-
-      <div className="metric-grid">
-        <article>
-          <span>Duration</span>
-          <strong>{Math.ceil(prototypeJob.durationMs / 1000)} sec</strong>
-        </article>
-        <article>
-          <span>Coins</span>
-          <strong>{prototypeJob.rewardCoins}</strong>
-        </article>
-        <article>
-          <span>Mastery</span>
-          <strong>
-            {prototypeJob.rewardMastery} +{" "}
-            {prototypeJob.completionMasteryBonus}
-          </strong>
-        </article>
-        <article>
-          <span>Energy cost</span>
-          <strong>{prototypeJob.needCosts.energy}</strong>
-        </article>
-      </div>
 
       {activity !== null && (
         <div className="activity-card">
           <div className="activity-line">
-            <span>Current progress</span>
+            <span>{activityLabel(activity)}</span>
             <strong>{remainingSeconds}s remaining</strong>
           </div>
           <progress value={progress} max="100" />
           <div className="activity-line earnings">
             <span>{state.wallet.toFixed(1)} coins</span>
             <span>{state.mastery.toFixed(1)} mastery</span>
+            <span>{generalKnowledge.toFixed(1)} knowledge</span>
+          </div>
+          <div className="actions compact">
+            <button
+              className="danger"
+              onClick={() => void dispatch({ type: "cancelActivity" })}
+              type="button"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
-      <div className="requirements">
-        <h3>Requirements and effects</h3>
-        <ul>
-          <li className={state.needs.energy >= 10 ? "met" : "unmet"}>
-            At least 10 energy ({Math.round(state.needs.energy)} available)
-          </li>
-          <li>
-            Costs {prototypeJob.needCosts.hunger} food,{" "}
-            {prototypeJob.needCosts.thirst} water,{" "}
-            {prototypeJob.needCosts.mood} mood, and{" "}
-            {prototypeJob.needCosts.energy} energy over the full job
-          </li>
-          <li>Cancellation keeps proportional rewards already earned</li>
-        </ul>
-      </div>
+      <article className="work-category">
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Student</p>
+            <h2>{prototypeStudy.name}</h2>
+          </div>
+          <span className="status idle">General Knowledge</span>
+        </header>
+        <p className="description">
+          Build broad foundational knowledge. Mood changes the gain rate, and
+          the saved desk contributes an additive five-percent passive bonus.
+        </p>
+        <div className="metric-grid">
+          <article><span>Duration</span><strong>15 sec</strong></article>
+          <article><span>Base knowledge</span><strong>10</strong></article>
+          <article><span>Current result</span><strong>{expectedStudyGain.toFixed(1)}</strong></article>
+          <article><span>Cost</span><strong>5 energy / 2 mood</strong></article>
+        </div>
+        <div className="requirements">
+          <h3>Requirements and effects</h3>
+          <ul>
+            <li className={state.needs.energy >= 10 ? "met" : "unmet"}>
+              At least 10 energy ({Math.round(state.needs.energy)} available)
+            </li>
+            <li>Mood multiplier: {moodMultiplier.toFixed(2)}×</li>
+            <li>Saved desk: +0.05 additive multiplier</li>
+            <li>No completion-only bonus</li>
+          </ul>
+        </div>
+        <div className="actions">
+          <button
+            className="primary"
+            disabled={!canStart}
+            onClick={() => void dispatch({ type: "startStudy" })}
+            type="button"
+          >
+            Start study
+          </button>
+        </div>
+      </article>
 
-      <div className="actions">
-        {activity === null ? (
+      <article className="work-category">
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Part-Time Jobs</p>
+            <h2>{prototypeJob.name}</h2>
+          </div>
+          <span className="status idle">Student job</span>
+        </header>
+        <p className="description">
+          A short student job that earns proportional coins and mastery, plus
+          its existing completion-only mastery bonus.
+        </p>
+        <div className="metric-grid">
+          <article><span>Duration</span><strong>15 sec</strong></article>
+          <article><span>Coins</span><strong>{prototypeJob.rewardCoins}</strong></article>
+          <article><span>Mastery</span><strong>{prototypeJob.rewardMastery} + {prototypeJob.completionMasteryBonus}</strong></article>
+          <article><span>Energy cost</span><strong>{prototypeJob.needCosts.energy}</strong></article>
+        </div>
+        <div className="actions">
           <button
             className="primary"
             disabled={!canStart}
@@ -167,16 +205,8 @@ function WorkTab({
           >
             Start work
           </button>
-        ) : (
-          <button
-            className="danger"
-            onClick={() => void dispatch({ type: "cancelJob" })}
-            type="button"
-          >
-            Cancel work
-          </button>
-        )}
-      </div>
+        </div>
+      </article>
     </section>
   );
 }
@@ -210,6 +240,10 @@ function CareersTab({ state }: { state: PetState }) {
         <article>
           <span>Career stage</span>
           <strong>Student</strong>
+        </article>
+        <article>
+          <span>General Knowledge</span>
+          <strong>{(state.knowledge["core:general"] ?? 0).toFixed(1)}</strong>
         </article>
       </div>
 

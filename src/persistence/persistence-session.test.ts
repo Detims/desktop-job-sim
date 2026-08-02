@@ -5,6 +5,7 @@ import {
   advancePetState,
   createInitialPetState,
   startPrototypeJob,
+  startPrototypeStudy,
 } from "../simulation/pet-simulation.js";
 import type { PetRepository } from "./pet-repository.js";
 import { PersistenceSession } from "./persistence-session.js";
@@ -24,7 +25,7 @@ class FakeRepository implements PetRepository {
 }
 
 describe("PersistenceSession", () => {
-  it("checkpoints active work every five accumulated seconds", () => {
+  it("checkpoints an active activity every five accumulated seconds", () => {
     const initial = startPrototypeJob(createInitialPetState(0), 0);
     const repository = new FakeRepository();
     const session = new PersistenceSession(
@@ -39,6 +40,27 @@ describe("PersistenceSession", () => {
     expect(session.maybeCheckpoint(fiveSeconds, 5_000)).toBe(true);
     expect(repository.records).toHaveLength(1);
     expect(repository.records[0]?.state.activity?.accumulatedMs).toBe(5_000);
+  });
+
+  it("checkpoints study using the same five-second durability bound", () => {
+    const initial = startPrototypeStudy(
+      createInitialPetState(0),
+      0,
+      { restRecovery: 0.05, studyGain: 0.05 },
+    );
+    const repository = new FakeRepository();
+    const session = new PersistenceSession(
+      repository,
+      { x: 10, y: 20 },
+      initial,
+    );
+    const fiveSeconds = advancePetState(initial, 5_000, 5_000);
+
+    expect(session.maybeCheckpoint(fiveSeconds, 5_000)).toBe(true);
+    expect(repository.records[0]?.state.activity?.type).toBe("study");
+    expect(
+      repository.records[0]?.state.knowledge["core:general"],
+    ).toBeGreaterThan(0);
   });
 
   it("persists job completion immediately", () => {

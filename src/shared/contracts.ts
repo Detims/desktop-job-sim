@@ -1,8 +1,14 @@
 import { z } from "zod";
 
 export type {
+  ActiveActivity,
   ActiveJob,
+  ActiveRest,
+  ActiveStudy,
+  ActivityBonuses,
+  ActivityType,
   JobDefinition,
+  KnowledgeState,
   ManagementTab,
   NeedState,
   PetCommand,
@@ -12,6 +18,8 @@ export type {
   PetSnapshot,
   PetState,
   Presentation,
+  RestDefinition,
+  StudyDefinition,
   WindowPoint,
 } from "./pet-types.js";
 
@@ -29,6 +37,8 @@ export const PresentationSchema = z.enum([
   "walking",
   "petted",
   "dragged",
+  "resting",
+  "studying",
   "working",
 ]);
 
@@ -39,10 +49,44 @@ export const ActiveJobSchema = z.object({
   definitionId: z.string().min(1),
   durationMs: z.number().positive(),
   startedAt: z.number().nonnegative(),
+  type: z.literal("job"),
 });
 
-export const PetStateSchema = z.object({
-  activity: ActiveJobSchema.nullable(),
+export const ActiveStudySchema = z.object({
+  accumulatedMs: z.number().nonnegative(),
+  creditedKnowledge: z.number().nonnegative(),
+  definitionId: z.string().min(1),
+  durationMs: z.number().positive(),
+  gainMultiplier: z.number().nonnegative(),
+  knowledgeFieldId: z.string().min(1),
+  startedAt: z.number().nonnegative(),
+  type: z.literal("study"),
+});
+
+export const ActiveRestSchema = z.object({
+  accumulatedMs: z.number().nonnegative(),
+  creditedEnergy: z.number().nonnegative(),
+  definitionId: z.string().min(1),
+  durationMs: z.number().positive(),
+  gainMultiplier: z.number().nonnegative(),
+  startedAt: z.number().nonnegative(),
+  type: z.literal("rest"),
+});
+
+export const ActiveActivitySchema = z.discriminatedUnion("type", [
+  ActiveJobSchema,
+  ActiveRestSchema,
+  ActiveStudySchema,
+]);
+
+export const KnowledgeStateSchema = z.record(
+  z.string().min(1),
+  z.number().nonnegative(),
+);
+
+const CanonicalPetStateSchema = z.object({
+  activity: ActiveActivitySchema.nullable(),
+  knowledge: KnowledgeStateSchema,
   mastery: z.number().nonnegative(),
   needs: NeedStateSchema,
   petId: z.string().min(1),
@@ -55,7 +99,34 @@ export const PetStateSchema = z.object({
   wallet: z.number().nonnegative(),
 });
 
-export const PetMutableStateSchema = PetStateSchema.omit({
+function normalizeLegacyPetState(input: unknown): unknown {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    return input;
+  }
+
+  const state = input as Record<string, unknown>;
+  const activity = state.activity;
+  const normalizedActivity =
+    typeof activity === "object" &&
+    activity !== null &&
+    !Array.isArray(activity) &&
+    !("type" in activity)
+      ? { ...activity, type: "job" }
+      : activity;
+
+  return {
+    ...state,
+    activity: normalizedActivity,
+    knowledge: state.knowledge ?? { "core:general": 0 },
+  };
+}
+
+export const PetStateSchema = z.preprocess(
+  normalizeLegacyPetState,
+  CanonicalPetStateSchema,
+);
+
+export const PetMutableStateSchema = CanonicalPetStateSchema.omit({
   petId: true,
   stateVersion: true,
 }).partial();
@@ -71,9 +142,11 @@ export const PetPatchSchema = z.object({
 });
 
 export const PetCommandSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("cancelJob") }),
+  z.object({ type: z.literal("cancelActivity") }),
   z.object({ type: z.literal("pet") }),
   z.object({ type: z.literal("startJob") }),
+  z.object({ type: z.literal("startRest") }),
+  z.object({ type: z.literal("startStudy") }),
   z.object({ type: z.literal("walk") }),
 ]);
 
@@ -97,4 +170,20 @@ export const JobDefinitionSchema = z.object({
   needCosts: NeedStateSchema,
   rewardCoins: z.number().nonnegative(),
   rewardMastery: z.number().nonnegative(),
+});
+
+export const StudyDefinitionSchema = z.object({
+  durationMs: z.number().positive(),
+  id: z.string().min(1),
+  knowledgeFieldId: z.string().min(1),
+  name: z.string().min(1),
+  needCosts: NeedStateSchema,
+  rewardKnowledge: z.number().nonnegative(),
+});
+
+export const RestDefinitionSchema = z.object({
+  durationMs: z.number().positive(),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  recoveryEnergy: z.number().positive(),
 });

@@ -4,7 +4,7 @@ import type {
 } from "../shared/pet-types.js";
 import type { PetRepository } from "./pet-repository.js";
 
-export const WORK_CHECKPOINT_INTERVAL_MS = 5_000;
+export const ACTIVITY_CHECKPOINT_INTERVAL_MS = 5_000;
 
 export class PersistenceSession {
   private lastPersistedActivityMs: number | null;
@@ -34,7 +34,7 @@ export class PersistenceSession {
       accumulatedMs !== null &&
       (this.lastPersistedActivityMs === null ||
         accumulatedMs - this.lastPersistedActivityMs >=
-          WORK_CHECKPOINT_INTERVAL_MS);
+          ACTIVITY_CHECKPOINT_INTERVAL_MS);
 
     if (!completedSinceSave && !checkpointDue) {
       return false;

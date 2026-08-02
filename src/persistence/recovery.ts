@@ -1,7 +1,7 @@
 import type { PetState } from "../shared/pet-types.js";
 import {
   applyOfflineNeedDecay,
-  cancelActiveJob,
+  cancelActiveActivity,
   MAX_OFFLINE_ELAPSED_MS,
 } from "../simulation/pet-simulation.js";
 
@@ -47,8 +47,8 @@ export function recoverPetState(
     }
   }
 
-  const hadActiveJob = persistedState.activity !== null;
-  const cancelledState = cancelActiveJob(persistedState);
+  const hadActiveActivity = persistedState.activity !== null;
+  const cancelledState = cancelActiveActivity(persistedState);
   let state = applyOfflineNeedDecay(
     cancelledState,
     offlineElapsedMs,
@@ -59,10 +59,10 @@ export function recoverPetState(
     stateVersion: state.stateVersion + 1,
   };
 
-  if (!cleanExit || hadActiveJob) {
+  if (!cleanExit || hadActiveActivity) {
     diagnostics.push({
       code: "recovery.crash_settled",
-      context: { hadActiveJob },
+      context: { hadActiveActivity },
     });
   } else {
     diagnostics.push({ code: "recovery.clean_start" });

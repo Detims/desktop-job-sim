@@ -8,6 +8,7 @@ import {
 } from "pixi.js";
 
 import spriteSheetUrl from "../../../content/core/characters/prototype-cat/idle.png";
+import { activityLabel } from "../../shared/activity-label.js";
 import {
   type ManagementTab,
   type NeedState,
@@ -40,8 +41,10 @@ const workCountdown = requiredElement<HTMLOutputElement>("#work-countdown");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
+const knowledgeText = requiredElement<HTMLElement>("#knowledge");
 const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
 const homeButton = requiredElement<HTMLButtonElement>("#home-button");
+const restButton = requiredElement<HTMLButtonElement>("#rest-button");
 const workMenuButton =
   requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>(
@@ -154,11 +157,13 @@ function renderState(state: PetState): void {
   renderNeed("energy", state.needs.energy);
   walletText.textContent = `${state.wallet.toFixed(1)}c`;
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
+  knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;
   setPresentation(state.presentation);
 
   const hasActivity = state.activity !== null;
   walkButton.disabled = hasActivity;
+  restButton.disabled = hasActivity || state.needs.energy >= 100;
   workOverlay.hidden = !hasActivity;
 
   if (state.activity !== null) {
@@ -168,7 +173,7 @@ function renderState(state: PetState): void {
         (state.activity.durationMs - state.activity.accumulatedMs) / 1000,
       ),
     );
-    workCountdown.value = `Sorting tiny files · ${remainingSeconds}s`;
+    workCountdown.value = `${activityLabel(state.activity)} · ${remainingSeconds}s`;
   }
 }
 
@@ -342,6 +347,9 @@ document.addEventListener("keydown", (event) => {
 walkButton.addEventListener("click", () => {
   void dispatch({ type: "walk" });
 });
+restButton.addEventListener("click", () => {
+  void dispatch({ type: "startRest" });
+});
 homeButton.addEventListener("click", () => {
   setStatsOverlayOpen(false);
   void openHome();
@@ -353,7 +361,7 @@ careersMenuButton.addEventListener("click", () => {
   void openManagement("careers");
 });
 cancelWorkButton.addEventListener("click", () => {
-  void dispatch({ type: "cancelJob" });
+  void dispatch({ type: "cancelActivity" });
 });
 
 console.info("Desktop pet renderer ready.", window.desktopPet.runtime);
