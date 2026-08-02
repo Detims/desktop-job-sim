@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type {
   MeaningfulEvent,
   MeaningfulEventDraft,
@@ -11,7 +9,7 @@ export function materializeEvent(
 ): MeaningfulEvent {
   return {
     details: { ...(draft.details ?? {}) },
-    eventId: randomUUID(),
+    eventId: globalThis.crypto.randomUUID(),
     occurredAt,
     retention: "standard",
     summary: draft.summary,
