@@ -4,6 +4,8 @@ export const IPC_CHANNELS = Object.freeze({
   drag: "pet-window:drag",
   endDrag: "pet-window:end-drag",
   getSnapshot: "pet:get-snapshot",
+  getSettings: "settings:get",
+  getActivityPage: "activity:get-page",
   getHomeLayout: "home:get-layout",
   homeDirty: "home:set-dirty",
   homeReady: "home:ready",
@@ -11,6 +13,9 @@ export const IPC_CHANNELS = Object.freeze({
   openHome: "home:open",
   openManagement: "management:open",
   patch: "pet:patch",
+  settingsChanged: "settings:changed",
+  updateSettings: "settings:update",
+  activityEvent: "activity:event",
   requestDesktop: "home:request-desktop",
   saveHomeLayout: "home:save-layout",
 });

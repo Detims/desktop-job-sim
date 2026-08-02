@@ -226,6 +226,7 @@ function advanceRest(
   elapsedMs: number,
   now: number,
   definition: RestDefinition,
+  passiveNeedMultiplier: number,
 ): PetState {
   if (state.activity?.type !== "rest") return state;
   const activity = state.activity;
@@ -237,7 +238,8 @@ function advanceRest(
   const recoveryPerMs =
     (definition.recoveryEnergy * activity.gainMultiplier) /
     activity.durationMs;
-  const decayPerMs = NEED_DECAY_PER_HOUR.energy / HOUR_MS;
+  const decayPerMs =
+    (NEED_DECAY_PER_HOUR.energy * passiveNeedMultiplier) / HOUR_MS;
   const netRecoveryPerMs = recoveryPerMs - decayPerMs;
   const timeToFullMs =
     netRecoveryPerMs > 0
@@ -251,7 +253,7 @@ function advanceRest(
   const needsAfterDecay = applyNeedDelta(
     state.needs,
     NEED_DECAY_PER_HOUR,
-    elapsedMs / HOUR_MS,
+    (elapsedMs / HOUR_MS) * passiveNeedMultiplier,
   );
   const needs = {
     ...needsAfterDecay,
@@ -283,19 +285,26 @@ export function advancePetState(
   state: PetState,
   elapsedMs: number,
   now: number,
+  passiveNeedMultiplier = 1,
   jobDefinition: JobDefinition = PROTOTYPE_JOB,
   studyDefinition: StudyDefinition = PROTOTYPE_STUDY,
   restDefinition: RestDefinition = PROTOTYPE_REST,
 ): PetState {
   const safeElapsedMs = Math.max(0, elapsedMs);
   if (state.activity?.type === "rest") {
-    return advanceRest(state, safeElapsedMs, now, restDefinition);
+    return advanceRest(
+      state,
+      safeElapsedMs,
+      now,
+      restDefinition,
+      passiveNeedMultiplier,
+    );
   }
 
   let needs = applyNeedDelta(
     state.needs,
     NEED_DECAY_PER_HOUR,
-    safeElapsedMs / HOUR_MS,
+    (safeElapsedMs / HOUR_MS) * passiveNeedMultiplier,
   );
   let activity = state.activity;
   let knowledge = state.knowledge;

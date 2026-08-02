@@ -95,6 +95,25 @@ describe("pet simulation", () => {
     }
   });
 
+  it("scales only passive need decay with care intensity", () => {
+    const initial = createInitialPetState(0);
+    const sandbox = advancePetState(initial, 3_600_000, 3_600_000, 0);
+    const demanding = advancePetState(initial, 3_600_000, 3_600_000, 1.5);
+
+    expect(sandbox.needs).toEqual(initial.needs);
+    expect(demanding.needs.hunger).toBeCloseTo(initial.needs.hunger - 3);
+
+    const sandboxWork = advancePetState(
+      startPrototypeJob(initial, 0),
+      PROTOTYPE_JOB.durationMs,
+      PROTOTYPE_JOB.durationMs,
+      0,
+    );
+    expect(sandboxWork.needs.energy).toBeCloseTo(
+      initial.needs.energy - PROTOTYPE_JOB.needCosts.energy,
+    );
+  });
+
   it("applies the desk bonus additively to the neutral mood multiplier", () => {
     const initial = {
       ...createInitialPetState(0),

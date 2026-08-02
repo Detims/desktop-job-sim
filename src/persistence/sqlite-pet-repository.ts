@@ -11,14 +11,26 @@ import { DatabaseSync } from "node:sqlite";
 import { assertValidHomeLayout } from "../domain/home-layout.js";
 import { HomeLayoutSchema } from "../shared/home-contracts.js";
 import { PersistedPetRecordSchema } from "../shared/contracts.js";
+import {
+  AppSettingsSchema,
+  MeaningfulEventSchema,
+} from "../shared/settings-activity-contracts.js";
 import type { HomeLayout } from "../shared/home-types.js";
 import type { PersistedPetRecord } from "../shared/pet-types.js";
+import {
+  DEFAULT_APP_SETTINGS,
+  type ActivityCursor,
+  type ActivityPage,
+  type AppSettings,
+  type MeaningfulEvent,
+} from "../shared/settings-activity-types.js";
 import type { DiagnosticLogger } from "./diagnostic-logger.js";
 import type { HomeLayoutRepository } from "./home-layout-repository.js";
 import type { PetRepository } from "./pet-repository.js";
+import type { SettingsActivityRepository } from "./settings-activity-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -42,8 +54,25 @@ interface HomeLayoutRow {
   layout_version: number;
 }
 
+interface SettingsRow {
+  activity_retention: string;
+  always_on_top: number;
+  care_intensity: string;
+  settings_version: number;
+}
+
+interface EventRow {
+  details_json: string;
+  event_id: string;
+  occurred_at: number;
+  pet_id: string | null;
+  retention: string;
+  summary: string;
+  type: string;
+}
+
 export class SqlitePetRepository
-  implements PetRepository, HomeLayoutRepository
+  implements PetRepository, HomeLayoutRepository, SettingsActivityRepository
 {
   private constructor(
     private database: DatabaseSync,
@@ -180,7 +209,93 @@ export class SqlitePetRepository
     }
   }
 
-  save(record: PersistedPetRecord): void {
+  loadSettings(): AppSettings {
+    try {
+      const row = this.database
+        .prepare(
+          `SELECT care_intensity, always_on_top, activity_retention, settings_version
+             FROM app_settings
+            WHERE id = 1`,
+        )
+        .get() as SettingsRow | undefined;
+      if (row === undefined) {
+        throw new Error("The app settings singleton is missing.");
+      }
+      return AppSettingsSchema.parse({
+        activityRetention: row.activity_retention,
+        alwaysOnTop: row.always_on_top === 1,
+        careIntensity: row.care_intensity,
+        settingsVersion: row.settings_version,
+      });
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.settings_invalid",
+        "Persisted application settings failed validation.",
+        error,
+      );
+    }
+  }
+
+  loadActivityPage(
+    before: ActivityCursor | undefined,
+    limit: number,
+  ): ActivityPage {
+    try {
+      const boundedLimit = Math.min(100, Math.max(1, Math.trunc(limit)));
+      const rows = (before === undefined
+        ? this.database
+            .prepare(
+              `SELECT event_id, occurred_at, type, summary, details_json, pet_id, retention
+                 FROM meaningful_event
+                ORDER BY occurred_at DESC, event_id DESC
+                LIMIT ?`,
+            )
+            .all(boundedLimit + 1)
+        : this.database
+            .prepare(
+              `SELECT event_id, occurred_at, type, summary, details_json, pet_id, retention
+                 FROM meaningful_event
+                WHERE occurred_at < ? OR (occurred_at = ? AND event_id < ?)
+                ORDER BY occurred_at DESC, event_id DESC
+                LIMIT ?`,
+            )
+            .all(
+              before.occurredAt,
+              before.occurredAt,
+              before.eventId,
+              boundedLimit + 1,
+            )) as unknown as EventRow[];
+      const hasMore = rows.length > boundedLimit;
+      const events = rows.slice(0, boundedLimit).map((row) => {
+        const candidate = {
+          details: JSON.parse(row.details_json),
+          eventId: row.event_id,
+          occurredAt: row.occurred_at,
+          retention: row.retention,
+          summary: row.summary,
+          type: row.type,
+          ...(row.pet_id === null ? {} : { petId: row.pet_id }),
+        };
+        return MeaningfulEventSchema.parse(candidate) as MeaningfulEvent;
+      });
+      const last = events.at(-1);
+      return {
+        events,
+        nextCursor:
+          hasMore && last !== undefined
+            ? { eventId: last.eventId, occurredAt: last.occurredAt }
+            : null,
+      };
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.activity_invalid",
+        "Persisted activity history failed validation.",
+        error,
+      );
+    }
+  }
+
+  save(record: PersistedPetRecord, event?: MeaningfulEvent): void {
     const validated = PersistedPetRecordSchema.parse(record);
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -203,6 +318,9 @@ export class SqlitePetRepository
           validated.savedAt,
           validated.cleanExit ? 1 : 0,
         );
+      if (event !== undefined) {
+        this.insertEvent(event);
+      }
       this.database.exec("COMMIT");
     } catch (error: unknown) {
       this.database.exec("ROLLBACK");
@@ -221,6 +339,7 @@ export class SqlitePetRepository
   saveHomeLayout(
     layout: HomeLayout,
     expectedVersion: number | null,
+    event?: MeaningfulEvent,
   ): void {
     const validated = assertValidHomeLayout(HomeLayoutSchema.parse(layout));
     this.database.exec("BEGIN IMMEDIATE");
@@ -245,6 +364,9 @@ export class SqlitePetRepository
              layout_version = excluded.layout_version`,
         )
         .run(JSON.stringify(validated), validated.layoutVersion);
+      if (event !== undefined) {
+        this.insertEvent(event);
+      }
       this.database.exec("COMMIT");
     } catch (error: unknown) {
       this.database.exec("ROLLBACK");
@@ -261,6 +383,121 @@ export class SqlitePetRepository
       });
       throw wrapped;
     }
+  }
+
+  appendEvent(event: MeaningfulEvent): void {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.insertEvent(event);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.activity_save_failed",
+        "The activity event could not be saved transactionally.",
+        error,
+      );
+    }
+  }
+
+  saveSettings(
+    settings: AppSettings,
+    expectedVersion: number,
+    event: MeaningfulEvent,
+    pruneOlderThan?: number,
+  ): void {
+    const validated = AppSettingsSchema.parse(settings);
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const row = this.database
+        .prepare("SELECT settings_version FROM app_settings WHERE id = 1")
+        .get() as Pick<SettingsRow, "settings_version"> | undefined;
+      if (row?.settings_version !== expectedVersion) {
+        throw new PersistenceError(
+          "settings.version_conflict",
+          "Settings changed before this update could be applied.",
+        );
+      }
+      this.database
+        .prepare(
+          `UPDATE app_settings
+              SET care_intensity = ?, always_on_top = ?, activity_retention = ?, settings_version = ?
+            WHERE id = 1`,
+        )
+        .run(
+          validated.careIntensity,
+          validated.alwaysOnTop ? 1 : 0,
+          validated.activityRetention,
+          validated.settingsVersion,
+        );
+      this.insertEvent(event);
+      if (pruneOlderThan !== undefined) {
+        this.database
+          .prepare("DELETE FROM meaningful_event WHERE occurred_at < ?")
+          .run(pruneOlderThan);
+      }
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      const wrapped =
+        error instanceof PersistenceError
+          ? error
+          : this.wrapAndLog(
+              "database.settings_save_failed",
+              "Settings could not be saved transactionally.",
+              error,
+            );
+      if (wrapped === error) {
+        this.logger.write("warning", wrapped.eventCode, wrapped.message);
+      }
+      throw wrapped;
+    }
+  }
+
+  pruneActivity(olderThan: number): number {
+    try {
+      const result = this.database
+        .prepare("DELETE FROM meaningful_event WHERE occurred_at < ?")
+        .run(olderThan);
+      return Number(result.changes);
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.activity_prune_failed",
+        "Expired activity events could not be pruned.",
+        error,
+      );
+    }
+  }
+
+  private insertEvent(event: MeaningfulEvent): void {
+    const validated = MeaningfulEventSchema.parse(event);
+    this.database
+      .prepare(
+        `INSERT INTO meaningful_event (
+           event_id, occurred_at, type, summary, details_json, pet_id, retention
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        validated.eventId,
+        validated.occurredAt,
+        validated.type,
+        validated.summary,
+        JSON.stringify(validated.details),
+        validated.petId ?? null,
+        validated.retention,
+      );
+  }
+
+  private wrapAndLog(
+    eventCode: string,
+    message: string,
+    error: unknown,
+  ): PersistenceError {
+    const wrapped = new PersistenceError(eventCode, message, { cause: error });
+    this.logger.write("error", wrapped.eventCode, wrapped.message, {
+      cause: error instanceof Error ? error.message : String(error),
+    });
+    return wrapped;
   }
 
   private static assertHealthy(database: DatabaseSync): void {
@@ -330,6 +567,40 @@ export class SqlitePetRepository
             layout_version INTEGER NOT NULL CHECK (layout_version >= 0)
           ) STRICT;
         `);
+      }
+      if (fromVersion < 3) {
+        database.exec(`
+          CREATE TABLE app_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            care_intensity TEXT NOT NULL,
+            always_on_top INTEGER NOT NULL CHECK (always_on_top IN (0, 1)),
+            activity_retention TEXT NOT NULL,
+            settings_version INTEGER NOT NULL CHECK (settings_version >= 0)
+          ) STRICT;
+          CREATE TABLE meaningful_event (
+            event_id TEXT PRIMARY KEY,
+            occurred_at INTEGER NOT NULL CHECK (occurred_at >= 0),
+            type TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            details_json TEXT NOT NULL,
+            pet_id TEXT,
+            retention TEXT NOT NULL
+          ) STRICT;
+          CREATE INDEX meaningful_event_chronology
+            ON meaningful_event (occurred_at DESC, event_id DESC);
+        `);
+        database
+          .prepare(
+            `INSERT INTO app_settings (
+               id, care_intensity, always_on_top, activity_retention, settings_version
+             ) VALUES (1, ?, ?, ?, ?)`,
+          )
+          .run(
+            DEFAULT_APP_SETTINGS.careIntensity,
+            DEFAULT_APP_SETTINGS.alwaysOnTop ? 1 : 0,
+            DEFAULT_APP_SETTINGS.activityRetention,
+            DEFAULT_APP_SETTINGS.settingsVersion,
+          );
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

@@ -17,8 +17,10 @@ import {
   type Presentation,
 } from "../../shared/contracts.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
+import { initializePetOverlay } from "../shared/pet-overlay.js";
 import { resolveAnimation } from "./animation.js";
 import "./styles.css";
+import "../shared/pet-overlay.css";
 
 const FRAME_COUNT = 4;
 const DRAG_HOLD_MS = 220;
@@ -76,6 +78,7 @@ root.appendChild(pixi.canvas);
 
 let petSprite: AnimatedSprite | null = null;
 let currentState: PetState = readSnapshot(await window.desktopPet.getSnapshot());
+await initializePetOverlay(window.desktopPet);
 let resyncInFlight: Promise<void> | null = null;
 
 async function addPetSprite(): Promise<void> {

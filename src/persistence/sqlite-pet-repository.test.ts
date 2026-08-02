@@ -15,6 +15,7 @@ import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { DiagnosticLogger } from "./diagnostic-logger.js";
 import { PersistenceError } from "./persistence-error.js";
 import { SqlitePetRepository } from "./sqlite-pet-repository.js";
+import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -133,8 +134,97 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(2);
+    expect(version.user_version).toBe(3);
     migrated.close();
+  });
+
+  it("persists versioned settings and their audit event atomically", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    expect(repository.loadSettings()).toEqual({
+      activityRetention: "thirtyDays",
+      alwaysOnTop: true,
+      careIntensity: "balanced",
+      settingsVersion: 0,
+    });
+
+    const event: MeaningfulEvent = {
+      details: { from: "balanced", to: "relaxed" },
+      eventId: "event-settings",
+      occurredAt: 20_000,
+      retention: "standard",
+      summary: "Care intensity changed to Relaxed.",
+      type: "settings.care_intensity_changed",
+    };
+    repository.saveSettings(
+      {
+        ...repository.loadSettings(),
+        careIntensity: "relaxed",
+        settingsVersion: 1,
+      },
+      0,
+      event,
+    );
+
+    expect(repository.loadSettings().careIntensity).toBe("relaxed");
+    expect(repository.loadActivityPage(undefined, 100).events).toEqual([event]);
+    expect(() =>
+      repository.saveSettings(
+        { ...repository.loadSettings(), alwaysOnTop: false, settingsVersion: 2 },
+        0,
+        { ...event, eventId: "stale" },
+      ),
+    ).toThrowError(expect.objectContaining({ eventCode: "settings.version_conflict" }));
+    expect(repository.loadSettings().alwaysOnTop).toBe(true);
+    repository.close();
+  });
+
+  it("pages newest-first with a stable timestamp and id cursor", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    for (const [eventId, occurredAt] of [["a", 100], ["b", 100], ["c", 90]] as const) {
+      repository.appendEvent({
+        details: {},
+        eventId,
+        occurredAt,
+        retention: "standard",
+        summary: `Event ${eventId}`,
+        type: "startup.recovered",
+      });
+    }
+
+    const first = repository.loadActivityPage(undefined, 2);
+    expect(first.events.map((event) => event.eventId)).toEqual(["b", "a"]);
+    expect(first.nextCursor).toEqual({ eventId: "a", occurredAt: 100 });
+    expect(
+      repository.loadActivityPage(first.nextCursor ?? undefined, 2).events
+        .map((event) => event.eventId),
+    ).toEqual(["c"]);
+    repository.close();
+  });
+
+  it("stores a Home save and activity event in one transaction", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    const initial = createInitialHomeLayout();
+    repository.saveHomeLayout(initial, null);
+    const moved = {
+      ...initial,
+      furniture: initial.furniture.map((item) =>
+        item.kind === "desk" ? { ...item, x: 7, y: 4 } : item,
+      ),
+      layoutVersion: 1,
+    };
+    repository.saveHomeLayout(moved, 0, {
+      details: { layoutVersion: 1 },
+      eventId: "home-save",
+      occurredAt: 200,
+      retention: "standard",
+      summary: "Home layout saved.",
+      type: "home.layout_saved",
+    });
+    expect(repository.loadActivityPage(undefined, 10).events[0]?.eventId).toBe("home-save");
+    repository.close();
   });
 
   it("saves layouts with optimistic version checks", () => {

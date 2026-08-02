@@ -2,6 +2,11 @@ import type {
   PetState,
   WindowPoint,
 } from "../shared/pet-types.js";
+import { materializeEvent } from "../shared/meaningful-event.js";
+import type {
+  MeaningfulEvent,
+  MeaningfulEventDraft,
+} from "../shared/settings-activity-types.js";
 import type { PetRepository } from "./pet-repository.js";
 
 export const ACTIVITY_CHECKPOINT_INTERVAL_MS = 5_000;
@@ -13,6 +18,7 @@ export class PersistenceSession {
     private readonly repository: PetRepository,
     private position: WindowPoint,
     initialState: PetState,
+    private readonly onActivity?: (event: MeaningfulEvent) => void,
   ) {
     this.lastPersistedActivityMs =
       initialState.activity?.accumulatedMs ?? null;
@@ -44,12 +50,16 @@ export class PersistenceSession {
     return true;
   }
 
-  saveClean(state: PetState, now: number): void {
-    this.save(state, now, true);
+  saveClean(state: PetState, now: number, event?: MeaningfulEventDraft): void {
+    this.save(state, now, true, event);
   }
 
-  saveCommand(state: PetState, now: number): void {
-    this.save(state, now, false);
+  saveCommand(
+    state: PetState,
+    now: number,
+    event?: MeaningfulEventDraft,
+  ): void {
+    this.save(state, now, false, event);
   }
 
   savePosition(position: WindowPoint, state: PetState, now: number): void {
@@ -57,13 +67,20 @@ export class PersistenceSession {
     this.save(state, now, false);
   }
 
-  private save(state: PetState, now: number, cleanExit: boolean): void {
+  private save(
+    state: PetState,
+    now: number,
+    cleanExit: boolean,
+    draft?: MeaningfulEventDraft,
+  ): void {
+    const event = draft === undefined ? undefined : materializeEvent(draft, now);
     this.repository.save({
       cleanExit,
       position: this.position,
       savedAt: now,
       state,
-    });
+    }, event);
     this.lastPersistedActivityMs = state.activity?.accumulatedMs ?? null;
+    if (event !== undefined) this.onActivity?.(structuredClone(event));
   }
 }

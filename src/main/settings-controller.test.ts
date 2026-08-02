@@ -1,0 +1,97 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { SettingsActivityRepository } from "../persistence/settings-activity-repository.js";
+import { DEFAULT_APP_SETTINGS } from "../shared/settings-activity-types.js";
+import { SettingsController } from "./settings-controller.js";
+
+function repository(): SettingsActivityRepository {
+  return {
+    appendEvent: vi.fn(),
+    loadActivityPage: vi.fn(),
+    loadSettings: vi.fn(),
+    pruneActivity: vi.fn(),
+    saveSettings: vi.fn(),
+  };
+}
+
+describe("SettingsController", () => {
+  it("persists before publishing an authoritative settings change", () => {
+    const storage = repository();
+    const listener = vi.fn();
+    const activity = vi.fn();
+    const controller = new SettingsController(
+      DEFAULT_APP_SETTINGS,
+      storage,
+      activity,
+    );
+    controller.subscribe(listener);
+
+    const result = controller.update(
+      {
+        baseVersion: 0,
+        update: { careIntensity: "demanding", type: "setCareIntensity" },
+      },
+      10_000,
+    );
+
+    expect(result).toEqual({
+      ...DEFAULT_APP_SETTINGS,
+      careIntensity: "demanding",
+      settingsVersion: 1,
+    });
+    expect(storage.saveSettings).toHaveBeenCalledWith(
+      result,
+      0,
+      expect.objectContaining({ type: "settings.care_intensity_changed" }),
+      undefined,
+    );
+    expect(listener).toHaveBeenCalledWith(result);
+    expect(activity).toHaveBeenCalledTimes(1);
+  });
+
+  it("prunes immediately when switching back to 30-day retention", () => {
+    const storage = repository();
+    const controller = new SettingsController(
+      { ...DEFAULT_APP_SETTINGS, activityRetention: "indefinite" },
+      storage,
+    );
+    const now = 40 * 24 * 60 * 60 * 1_000;
+
+    controller.update(
+      {
+        baseVersion: 0,
+        update: { activityRetention: "thirtyDays", type: "setActivityRetention" },
+      },
+      now,
+    );
+
+    expect(storage.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ activityRetention: "thirtyDays" }),
+      0,
+      expect.any(Object),
+      10 * 24 * 60 * 60 * 1_000,
+    );
+  });
+
+  it("does not publish or mutate when persistence fails", () => {
+    const storage = repository();
+    vi.mocked(storage.saveSettings).mockImplementation(() => {
+      throw new Error("disk unavailable");
+    });
+    const listener = vi.fn();
+    const controller = new SettingsController(DEFAULT_APP_SETTINGS, storage);
+    controller.subscribe(listener);
+
+    expect(() =>
+      controller.update(
+        {
+          baseVersion: 0,
+          update: { alwaysOnTop: false, type: "setAlwaysOnTop" },
+        },
+        20,
+      ),
+    ).toThrow("disk unavailable");
+    expect(controller.getSnapshot()).toEqual(DEFAULT_APP_SETTINGS);
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

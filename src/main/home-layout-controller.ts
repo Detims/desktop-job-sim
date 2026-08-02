@@ -1,6 +1,8 @@
 import { assertValidHomeLayout } from "../domain/home-layout.js";
 import type { HomeLayoutRepository } from "../persistence/home-layout-repository.js";
 import { PersistenceError } from "../persistence/persistence-error.js";
+import { materializeEvent } from "../shared/meaningful-event.js";
+import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
 import type {
   HomeLayout,
   HomeLayoutSnapshot,
@@ -13,6 +15,7 @@ export class HomeLayoutController {
   constructor(
     initialLayout: HomeLayout,
     private readonly repository: HomeLayoutRepository,
+    private readonly onActivity?: (event: MeaningfulEvent) => void,
   ) {
     this.layout = structuredClone(assertValidHomeLayout(initialLayout));
   }
@@ -21,7 +24,7 @@ export class HomeLayoutController {
     return { layout: structuredClone(this.layout) };
   }
 
-  save(command: SaveHomeLayoutCommand): HomeLayoutSnapshot {
+  save(command: SaveHomeLayoutCommand, now = Date.now()): HomeLayoutSnapshot {
     if (command.baseVersion !== this.layout.layoutVersion) {
       throw new PersistenceError(
         "home.layout_conflict",
@@ -35,8 +38,17 @@ export class HomeLayoutController {
       roomId: this.layout.roomId,
     });
 
-    this.repository.saveHomeLayout(nextLayout, this.layout.layoutVersion);
+    const event = materializeEvent(
+      {
+        details: { layoutVersion: nextLayout.layoutVersion },
+        summary: "Home layout saved.",
+        type: "home.layout_saved",
+      },
+      now,
+    );
+    this.repository.saveHomeLayout(nextLayout, this.layout.layoutVersion, event);
     this.layout = structuredClone(nextLayout);
+    this.onActivity?.(structuredClone(event));
     return this.getSnapshot();
   }
 }
