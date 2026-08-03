@@ -25,6 +25,7 @@ import {
   type PetState,
 } from "../shared/contracts.js";
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
+import type { MemoryEntryDraft } from "../shared/memory-types.js";
 
 export const CLERK_CAREER = CareerDefinitionSchema.parse(rawClerk);
 export const ADMINISTRATIVE_ASSISTANT_CAREER =
@@ -310,4 +311,32 @@ export function careerEventDrafts(
     }
   }
   return events;
+}
+
+export function careerMemoryDrafts(
+  before: PetState,
+  after: PetState,
+): MemoryEntryDraft[] {
+  const memories: MemoryEntryDraft[] = [];
+  for (const [careerId, next] of Object.entries(after.careers)) {
+    const previous = before.careers[careerId];
+    const career = careers.get(careerId);
+    if (
+      previous === undefined ||
+      career === undefined ||
+      previous.rankId === next.rankId
+    ) {
+      continue;
+    }
+    const rank = career.ranks[rankIndex(career, next.rankId)];
+    if (rank?.advancement === "promotion") {
+      memories.push({
+        category: "career",
+        description: `Earned promotion to ${rank.name} in the ${career.name} career.`,
+        petId: after.petId,
+        title: `Promoted to ${rank.name}`,
+      });
+    }
+  }
+  return memories;
 }

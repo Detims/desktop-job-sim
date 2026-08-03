@@ -49,6 +49,8 @@ export const MeaningfulEventTypeSchema = z.enum([
   "activity.shutdown_settled",
   "activity.sleep_settled",
   "activity.crash_recovered",
+  "exam.failed",
+  "exam.passed",
   "career.enrolled",
   "career.advanced",
   "career.promotion_ready",

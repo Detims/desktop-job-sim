@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
+import type { MemoryEntryDraft } from "../shared/memory-types.js";
 import { PetController } from "./pet-controller.js";
 
 describe("PetController", () => {
@@ -145,5 +146,39 @@ describe("PetController", () => {
     expect(
       durableEvents.filter((event) => event.type === "career.enrolled"),
     ).toHaveLength(1);
+  });
+
+  it("commits a guaranteed exam result, event, and memory together", async () => {
+    const base = new PetController(1_000).getSnapshot().state;
+    const durableEvents: MeaningfulEventDraft[] = [];
+    const durableMemories: MemoryEntryDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        knowledge: { ...base.knowledge, "core:business-administration": 15 },
+      },
+      (_state, _now, events = [], memories = []) => {
+        durableEvents.push(...events);
+        durableMemories.push(...memories);
+      },
+    );
+
+    await controller.dispatch(
+      { examId: "core:administrative-assistant-exam", type: "attemptExam" },
+      2_000,
+    );
+
+    expect(durableEvents.map((event) => event.type)).toEqual(["exam.passed"]);
+    expect(durableMemories).toEqual([
+      expect.objectContaining({
+        category: "qualification",
+        title: "Administrative Assistant Certified",
+      }),
+    ]);
+    expect(
+      controller.getSnapshot().state.qualifications[
+        "core:administrative-assistant-certification"
+      ],
+    ).toBeDefined();
   });
 });

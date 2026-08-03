@@ -7,10 +7,15 @@ import type {
   PetPatch,
   PetSnapshot,
 } from "../shared/pet-types.js";
+import type {
+  MemoryPage,
+  MemoryPageRequest,
+} from "../shared/memory-types.js";
 
 export interface DesktopManagementBridge {
   dispatch(command: PetCommand): Promise<PetSnapshot>;
   getSnapshot(): Promise<PetSnapshot>;
+  getMemoryPage(request?: MemoryPageRequest): Promise<MemoryPage>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onTabRequested(listener: (tab: ManagementTab) => void): () => void;
 }
@@ -21,7 +26,7 @@ const tabListeners = new Set<(tab: ManagementTab) => void>();
 ipcRenderer.on(
   IPC_CHANNELS.managementTab,
   (_event, tab: ManagementTab) => {
-    if (tab !== "work" && tab !== "careers") {
+    if (tab !== "work" && tab !== "careers" && tab !== "memories") {
       return;
     }
 
@@ -38,6 +43,9 @@ const bridge: DesktopManagementBridge = Object.freeze({
   },
   getSnapshot() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSnapshot);
+  },
+  getMemoryPage(request: MemoryPageRequest = {}) {
+    return ipcRenderer.invoke(IPC_CHANNELS.getMemoryPage, request);
   },
   onPatch(listener: (patch: PetPatch) => void) {
     const handler = (_event: Electron.IpcRendererEvent, patch: PetPatch) => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PersistedPetRecord } from "../shared/pet-types.js";
 import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
+import type { MemoryEntry } from "../shared/memory-types.js";
 import {
   advancePetState,
   createInitialPetState,
@@ -15,6 +16,7 @@ import { PersistenceSession } from "./persistence-session.js";
 
 class FakeRepository implements PetRepository {
   readonly events: MeaningfulEvent[] = [];
+  readonly memories: MemoryEntry[] = [];
   readonly records: PersistedPetRecord[] = [];
 
   close(): void {}
@@ -26,9 +28,11 @@ class FakeRepository implements PetRepository {
   save(
     record: PersistedPetRecord,
     events: readonly MeaningfulEvent[] = [],
+    memories: readonly MemoryEntry[] = [],
   ): void {
     this.records.push(structuredClone(record));
     this.events.push(...structuredClone(events));
+    this.memories.push(...structuredClone(memories));
   }
 }
 
@@ -132,5 +136,33 @@ describe("PersistenceSession", () => {
       "career.promotion_ready",
     ]);
     expect(published).toEqual(repository.events);
+  });
+
+  it("materializes a permanent memory in the same durable save", () => {
+    const initial = createInitialPetState(0);
+    const repository = new FakeRepository();
+    const session = new PersistenceSession(
+      repository,
+      { x: 10, y: 20 },
+      initial,
+    );
+
+    session.saveCommand(
+      initial,
+      100,
+      { summary: "Exam passed.", type: "exam.passed" },
+      {
+        category: "qualification",
+        description: "Passed an exam.",
+        petId: initial.petId,
+        title: "Certified",
+      },
+    );
+
+    expect(repository.events[0]?.type).toBe("exam.passed");
+    expect(repository.memories[0]).toMatchObject({
+      occurredAt: 100,
+      title: "Certified",
+    });
   });
 });

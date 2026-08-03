@@ -7,6 +7,7 @@ export const IPC_CHANNELS = Object.freeze({
   getSettings: "settings:get",
   getActivityPage: "activity:get-page",
   getHomeLayout: "home:get-layout",
+  getMemoryPage: "memory:get-page",
   homeDirty: "home:set-dirty",
   homeReady: "home:ready",
   managementTab: "management:set-tab",

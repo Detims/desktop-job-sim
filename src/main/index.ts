@@ -28,6 +28,7 @@ import {
   ActivityPageRequestSchema,
   UpdateSettingsCommandSchema,
 } from "../shared/settings-activity-contracts.js";
+import { MemoryPageRequestSchema } from "../shared/memory-contracts.js";
 import {
   ACTIVITY_RETENTION_MS,
   CARE_INTENSITY_MULTIPLIERS,
@@ -217,6 +218,22 @@ function registerPetIpc(): void {
     }
 
     return requirePetController().getSnapshot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getMemoryPage, (event, input: unknown) => {
+    if (managementWindow === null || event.sender !== managementWindow.webContents) {
+      throw new Error("Unauthorized memory-history request.");
+    }
+    try {
+      const request = MemoryPageRequestSchema.parse(input ?? {});
+      return settingsRepository?.loadMemoryPage(
+        request.before,
+        request.limit ?? 50,
+      );
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.command, async (event, input: unknown) => {
@@ -784,8 +801,8 @@ app.whenReady().then(() => {
     persistenceSession.saveCommand(initialState, now, startupEvent);
     petController = new PetController(
       initialState,
-      (state, committedAt, event) => {
-        persistenceSession?.saveCommand(state, committedAt, event);
+      (state, committedAt, events, memories) => {
+        persistenceSession?.saveCommand(state, committedAt, events, memories);
       },
       resolveFurnitureBonuses(initialHomeLayout),
     );

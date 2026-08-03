@@ -225,4 +225,4 @@ export interface RestDefinition {
   recoveryEnergy: number;
 }
 
-export type ManagementTab = "work" | "careers";
+export type ManagementTab = "work" | "careers" | "memories";

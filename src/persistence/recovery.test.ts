@@ -15,6 +15,25 @@ import { recoverPetState } from "./recovery.js";
 const HOUR_MS = 60 * 60 * 1000;
 
 describe("pet-state recovery", () => {
+  it("expires exam cooldown and Discouraged while the application is closed", () => {
+    const initial = createInitialPetState(0);
+    const persisted = {
+      ...initial,
+      conditions: {
+        "core:discouraged": {
+          conditionId: "core:discouraged",
+          expiresAt: 600_000,
+        },
+      },
+      examCooldowns: { "core:administrative-assistant-exam": 300_000 },
+    };
+
+    const recovered = recoverPetState(persisted, 0, 600_000, true);
+
+    expect(recovered.state.conditions).toEqual({});
+    expect(recovered.state.examCooldowns).toEqual({});
+  });
+
   it("uses half of the selected online care intensity offline", () => {
     const initial = createInitialPetState(0);
     const sandbox = recoverPetState(initial, 0, 3_600_000, true, 0);

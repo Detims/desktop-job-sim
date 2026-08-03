@@ -16,6 +16,7 @@ import { DiagnosticLogger } from "./diagnostic-logger.js";
 import { PersistenceError } from "./persistence-error.js";
 import { SqlitePetRepository } from "./sqlite-pet-repository.js";
 import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
+import type { MemoryEntry } from "../shared/memory-types.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -134,7 +135,7 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(4);
+    expect(version.user_version).toBe(5);
     migrated.close();
   });
 
@@ -176,6 +177,93 @@ describe("SqlitePetRepository", () => {
       ),
     ).toThrowError(expect.objectContaining({ eventCode: "settings.version_conflict" }));
     expect(repository.loadSettings().alwaysOnTop).toBe(true);
+    repository.close();
+  });
+
+  it("stores pet state, exam event, and permanent memory atomically", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    const event: MeaningfulEvent = {
+      details: { examId: "core:administrative-assistant-exam" },
+      eventId: "exam-pass",
+      occurredAt: 20_000,
+      petId: "prototype-pet",
+      retention: "standard",
+      summary: "Exam passed.",
+      type: "exam.passed",
+    };
+    const memory: MemoryEntry = {
+      category: "qualification",
+      description: "Passed the Administrative Assistant Certification Exam.",
+      memoryId: "memory-exam-pass",
+      occurredAt: 20_000,
+      petId: "prototype-pet",
+      title: "Administrative Assistant Certified",
+    };
+    const state = {
+      ...createInitialPetState(20_000),
+      qualifications: {
+        "core:administrative-assistant-certification": {
+          earnedAt: 20_000,
+          qualificationId: "core:administrative-assistant-certification",
+        },
+      },
+    };
+
+    repository.save(
+      { cleanExit: false, position: { x: 1, y: 2 }, savedAt: 20_000, state },
+      [event],
+      [memory],
+    );
+
+    expect(repository.load()?.state.qualifications).toEqual(state.qualifications);
+    expect(repository.loadActivityPage(undefined, 10).events).toEqual([event]);
+    expect(repository.loadMemoryPage(undefined, 10).memories).toEqual([memory]);
+    repository.close();
+  });
+
+  it("rolls back exam state and event when its memory cannot be inserted", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    const initial = createInitialPetState(1_000);
+    const memory: MemoryEntry = {
+      category: "qualification",
+      description: "Existing memory.",
+      memoryId: "duplicate-memory",
+      occurredAt: 1_000,
+      petId: initial.petId,
+      title: "Existing",
+    };
+    repository.save(
+      { cleanExit: false, position: { x: 0, y: 0 }, savedAt: 1_000, state: initial },
+      [],
+      [memory],
+    );
+
+    expect(() =>
+      repository.save(
+        {
+          cleanExit: false,
+          position: { x: 0, y: 0 },
+          savedAt: 2_000,
+          state: { ...initial, wallet: 99 },
+        },
+        [{
+          details: {},
+          eventId: "rolled-back-event",
+          occurredAt: 2_000,
+          petId: initial.petId,
+          retention: "standard",
+          summary: "Should roll back.",
+          type: "exam.passed",
+        }],
+        [{ ...memory, occurredAt: 2_000 }],
+      ),
+    ).toThrowError(expect.objectContaining({ eventCode: "database.save_failed" }));
+
+    expect(repository.load()?.state.wallet).toBe(0);
+    expect(repository.loadActivityPage(undefined, 10).events).toEqual([]);
+    expect(repository.loadMemoryPage(undefined, 10).memories).toEqual([memory]);
     repository.close();
   });
 

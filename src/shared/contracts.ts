@@ -35,7 +35,7 @@ export type {
   WindowPoint,
 } from "./pet-types.js";
 
-export const ManagementTabSchema = z.enum(["work", "careers"]);
+export const ManagementTabSchema = z.enum(["work", "careers", "memories"]);
 
 export const NeedStateSchema = z.object({
   energy: z.number().min(0).max(100),
