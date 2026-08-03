@@ -2,11 +2,17 @@ import { z } from "zod";
 
 export type {
   ActiveActivity,
+  ActiveCareerJob,
   ActiveJob,
   ActiveRest,
   ActiveStudy,
   ActivityBonuses,
   ActivityType,
+  CareerDefinition,
+  CareerJobDefinition,
+  CareerProgress,
+  CareerRankDefinition,
+  CareerState,
   JobDefinition,
   KnowledgeState,
   ManagementTab,
@@ -52,6 +58,17 @@ export const ActiveJobSchema = z.object({
   type: z.literal("job"),
 });
 
+export const ActiveCareerJobSchema = z.object({
+  accumulatedMs: z.number().nonnegative(),
+  careerId: z.string().min(1),
+  creditedCareerXp: z.number().nonnegative(),
+  creditedCoins: z.number().nonnegative(),
+  definitionId: z.string().min(1),
+  durationMs: z.number().positive(),
+  startedAt: z.number().nonnegative(),
+  type: z.literal("careerJob"),
+});
+
 export const ActiveStudySchema = z.object({
   accumulatedMs: z.number().nonnegative(),
   creditedKnowledge: z.number().nonnegative(),
@@ -74,6 +91,7 @@ export const ActiveRestSchema = z.object({
 });
 
 export const ActiveActivitySchema = z.discriminatedUnion("type", [
+  ActiveCareerJobSchema,
   ActiveJobSchema,
   ActiveRestSchema,
   ActiveStudySchema,
@@ -84,8 +102,22 @@ export const KnowledgeStateSchema = z.record(
   z.number().nonnegative(),
 );
 
+export const CareerProgressSchema = z.object({
+  careerId: z.string().min(1),
+  enrolledAt: z.number().int().nonnegative(),
+  mastery: z.number().nonnegative(),
+  promotionReadyAt: z.number().int().nonnegative().nullable(),
+  rankId: z.string().min(1),
+});
+
+export const CareerStateSchema = z.record(
+  z.string().min(1),
+  CareerProgressSchema,
+);
+
 const CanonicalPetStateSchema = z.object({
   activity: ActiveActivitySchema.nullable(),
+  careers: CareerStateSchema,
   knowledge: KnowledgeStateSchema,
   mastery: z.number().nonnegative(),
   needs: NeedStateSchema,
@@ -117,6 +149,7 @@ function normalizeLegacyPetState(input: unknown): unknown {
   return {
     ...state,
     activity: normalizedActivity,
+    careers: state.careers ?? {},
     knowledge: state.knowledge ?? { "core:general": 0 },
   };
 }
@@ -143,7 +176,10 @@ export const PetPatchSchema = z.object({
 
 export const PetCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancelActivity") }),
+  z.object({ careerId: z.string().min(1), type: z.literal("enrollCareer") }),
   z.object({ type: z.literal("pet") }),
+  z.object({ careerId: z.string().min(1), type: z.literal("promoteCareer") }),
+  z.object({ jobId: z.string().min(1), type: z.literal("startCareerJob") }),
   z.object({ type: z.literal("startJob") }),
   z.object({ type: z.literal("startRest") }),
   z.object({ type: z.literal("startStudy") }),
@@ -170,6 +206,36 @@ export const JobDefinitionSchema = z.object({
   needCosts: NeedStateSchema,
   rewardCoins: z.number().nonnegative(),
   rewardMastery: z.number().nonnegative(),
+});
+
+export const CareerRankDefinitionSchema = z.object({
+  advancement: z.enum(["automatic", "enrollment", "promotion"]),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  requiredKnowledge: z.number().nonnegative(),
+  requiredMastery: z.number().nonnegative(),
+});
+
+export const CareerDefinitionSchema = z.object({
+  enrollmentKnowledge: z.object({
+    fieldId: z.string().min(1),
+    minimum: z.number().nonnegative(),
+  }),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  ranks: z.array(CareerRankDefinitionSchema).min(1),
+});
+
+export const CareerJobDefinitionSchema = z.object({
+  careerId: z.string().min(1),
+  completionCareerXpBonus: z.number().nonnegative(),
+  durationMs: z.number().positive(),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  needCosts: NeedStateSchema,
+  requiredRankId: z.string().min(1),
+  rewardCareerXp: z.number().nonnegative(),
+  rewardCoins: z.number().nonnegative(),
 });
 
 export const StudyDefinitionSchema = z.object({

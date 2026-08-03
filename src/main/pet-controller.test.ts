@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 import { PetController } from "./pet-controller.js";
 
 describe("PetController", () => {
@@ -80,5 +81,69 @@ describe("PetController", () => {
 
     expect(settled.activity).toBeNull();
     expect(settled.knowledge["core:general"]).toBeGreaterThan(0);
+  });
+
+  it("rejects a career job before authoritative enrollment", async () => {
+    const controller = new PetController(1_000);
+
+    await expect(
+      controller.dispatch(
+        { jobId: "core:clerk:organize-mail", type: "startCareerJob" },
+        1_100,
+      ),
+    ).rejects.toThrow("still locked");
+    expect(controller.getSnapshot().state.activity).toBeNull();
+  });
+
+  it("persists Clerk enrollment, advancement readiness, and promotion exactly once", async () => {
+    const base = new PetController(1_000).getSnapshot().state;
+    const durableEvents: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        knowledge: { "core:general": 25 },
+      },
+      (_state, _now, events = []) => durableEvents.push(...events),
+    );
+
+    await controller.dispatch(
+      { careerId: "core:clerk", type: "enrollCareer" },
+      1_100,
+    );
+    for (let cycle = 0; cycle < 6; cycle += 1) {
+      const startedAt = 2_000 + cycle * 20_000;
+      await controller.dispatch(
+        { jobId: "core:clerk:organize-mail", type: "startCareerJob" },
+        startedAt,
+      );
+      controller.tick(15_000, startedAt + 15_000);
+    }
+
+    const ready = controller.getSnapshot().state.careers["core:clerk"];
+    expect(ready).toMatchObject({
+      mastery: 60,
+      rankId: "core:clerk:clerk",
+    });
+    expect(ready?.promotionReadyAt).not.toBeNull();
+    expect(
+      durableEvents.filter((event) => event.type === "career.advanced"),
+    ).toHaveLength(1);
+    expect(
+      durableEvents.filter((event) => event.type === "career.promotion_ready"),
+    ).toHaveLength(1);
+
+    await controller.dispatch(
+      { careerId: "core:clerk", type: "promoteCareer" },
+      130_000,
+    );
+    expect(
+      controller.getSnapshot().state.careers["core:clerk"]?.rankId,
+    ).toBe("core:clerk:senior");
+    expect(
+      durableEvents.filter((event) => event.type === "career.promoted"),
+    ).toHaveLength(1);
+    expect(
+      durableEvents.filter((event) => event.type === "career.enrolled"),
+    ).toHaveLength(1);
   });
 });

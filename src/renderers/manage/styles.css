@@ -138,6 +138,11 @@ h2 {
   color: #92400e;
 }
 
+.status.locked {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
 .metric-grid,
 .career-summary {
   display: grid;
@@ -236,7 +241,9 @@ h2 {
   padding-top: 22px;
 }
 
-.actions button {
+.actions button,
+.career-action button,
+.job-card button {
   border: 0;
   border-radius: 9px;
   cursor: pointer;
@@ -244,9 +251,16 @@ h2 {
   padding: 10px 17px;
 }
 
-.actions .primary {
+.actions .primary,
+.career-action .primary,
+.job-card .primary {
   background: #d97706;
   color: white;
+}
+
+.actions .secondary {
+  background: #e7e1d5;
+  color: #3f3a32;
 }
 
 .actions .danger {
@@ -254,9 +268,86 @@ h2 {
   color: white;
 }
 
-.actions button:disabled {
+.actions button:disabled,
+.career-action button:disabled,
+.job-card button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.locked-career {
+  background: rgb(229 231 235 / 35%);
+}
+
+.job-list,
+.rank-ladder {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.job-card,
+.career-action {
+  align-items: center;
+  background: #f7f4ed;
+  border: 1px solid #ded8cb;
+  border-radius: 12px;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.job-card.locked {
+  background: #eceae4;
+  color: #787166;
+}
+
+.job-card h3,
+.career-action h3 {
+  font-size: 15px;
+}
+
+.job-card p:not(.eyebrow),
+.career-action p {
+  color: #716b60;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.job-card small {
+  color: #9f1239;
+  display: block;
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.rank-ladder {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.rank-card {
+  border: 1px solid #d6d0c2;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px;
+}
+
+.rank-card.reached {
+  background: #fff7df;
+  border-color: #eab308;
+}
+
+.rank-card span,
+.rank-card small {
+  color: #787166;
+  font-size: 11px;
+}
+
+.career-action {
+  margin-top: 20px;
 }
 
 .future-note {
@@ -295,7 +386,14 @@ button:focus-visible {
   }
 
   .metric-grid,
-  .career-summary {
+  .career-summary,
+  .rank-ladder {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .career-action,
+  .job-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

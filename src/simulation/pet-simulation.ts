@@ -20,6 +20,11 @@ import {
   type RestDefinition,
   type StudyDefinition,
 } from "../shared/contracts.js";
+import {
+  getCareerJobDefinition,
+  isCareerJobUnlocked,
+  reconcileCareerProgression,
+} from "../domain/career.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
@@ -74,12 +79,16 @@ export function presentationForActivity(
 export function activityDisplayName(activity: ActiveActivity): string {
   if (activity.type === "study") return PROTOTYPE_STUDY.name;
   if (activity.type === "rest") return PROTOTYPE_REST.name;
+  if (activity.type === "careerJob") {
+    return getCareerJobDefinition(activity.definitionId).name;
+  }
   return PROTOTYPE_JOB.name;
 }
 
 export function createInitialPetState(now: number): PetState {
   return {
     activity: null,
+    careers: {},
     knowledge: { "core:general": 0 },
     mastery: 0,
     needs: {
@@ -96,6 +105,37 @@ export function createInitialPetState(now: number): PetState {
     statusText: "Ready to play.",
     updatedAt: now,
     wallet: 0,
+  };
+}
+
+export function startCareerJob(
+  state: PetState,
+  now: number,
+  jobId: string,
+): PetState {
+  const definition = getCareerJobDefinition(jobId);
+  if (state.activity !== null) return state;
+  if (!isCareerJobUnlocked(state, definition)) {
+    throw new Error("That career job is still locked.");
+  }
+  if (state.needs.energy < 10) {
+    return { ...state, statusText: "Too tired to work." };
+  }
+  return {
+    ...state,
+    activity: {
+      accumulatedMs: 0,
+      careerId: definition.careerId,
+      creditedCareerXp: 0,
+      creditedCoins: 0,
+      definitionId: definition.id,
+      durationMs: definition.durationMs,
+      startedAt: now,
+      type: "careerJob",
+    },
+    presentation: "working",
+    presentationUntil: null,
+    statusText: `Working: ${definition.name}`,
   };
 }
 
@@ -307,6 +347,7 @@ export function advancePetState(
     (safeElapsedMs / HOUR_MS) * passiveNeedMultiplier,
   );
   let activity = state.activity;
+  let careers = state.careers;
   let knowledge = state.knowledge;
   let mastery = state.mastery;
   let wallet = state.wallet;
@@ -351,6 +392,48 @@ export function advancePetState(
           creditedMastery: targetMastery,
         };
       }
+    } else if (activity.type === "careerJob") {
+      const definition = getCareerJobDefinition(activity.definitionId);
+      const targetCoins = definition.rewardCoins * progress;
+      const targetCareerXp = definition.rewardCareerXp * progress;
+      const career = careers[activity.careerId];
+      if (career === undefined) {
+        throw new Error("Active career job has no enrolled career state.");
+      }
+      needs = applyNeedDelta(
+        needs,
+        definition.needCosts,
+        activeElapsedMs / activity.durationMs,
+      );
+      wallet += targetCoins - activity.creditedCoins;
+      careers = {
+        ...careers,
+        [activity.careerId]: {
+          ...career,
+          mastery:
+            career.mastery + targetCareerXp - activity.creditedCareerXp,
+        },
+      };
+      if (nextAccumulatedMs >= activity.durationMs) {
+        careers = {
+          ...careers,
+          [activity.careerId]: {
+            ...careers[activity.careerId]!,
+            mastery:
+              careers[activity.careerId]!.mastery +
+              definition.completionCareerXpBonus,
+          },
+        };
+        activity = null;
+        statusText = `Completed ${definition.name}.`;
+      } else {
+        activity = {
+          ...activity,
+          accumulatedMs: nextAccumulatedMs,
+          creditedCareerXp: targetCareerXp,
+          creditedCoins: targetCoins,
+        };
+      }
     } else {
       const targetKnowledge =
         studyDefinition.rewardKnowledge * activity.gainMultiplier * progress;
@@ -386,9 +469,10 @@ export function advancePetState(
     }
   }
 
-  return {
+  return reconcileCareerProgression({
     ...state,
     activity,
+    careers,
     knowledge,
     mastery,
     needs,
@@ -397,5 +481,5 @@ export function advancePetState(
     statusText,
     updatedAt: now,
     wallet,
-  };
+  }, now);
 }

@@ -50,16 +50,20 @@ export class PersistenceSession {
     return true;
   }
 
-  saveClean(state: PetState, now: number, event?: MeaningfulEventDraft): void {
-    this.save(state, now, true, event);
+  saveClean(
+    state: PetState,
+    now: number,
+    events?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
+  ): void {
+    this.save(state, now, true, events);
   }
 
   saveCommand(
     state: PetState,
     now: number,
-    event?: MeaningfulEventDraft,
+    events?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
   ): void {
-    this.save(state, now, false, event);
+    this.save(state, now, false, events);
   }
 
   savePosition(position: WindowPoint, state: PetState, now: number): void {
@@ -71,16 +75,18 @@ export class PersistenceSession {
     state: PetState,
     now: number,
     cleanExit: boolean,
-    draft?: MeaningfulEventDraft,
+    drafts?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
   ): void {
-    const event = draft === undefined ? undefined : materializeEvent(draft, now);
+    const normalizedDrafts =
+      drafts === undefined ? [] : Array.isArray(drafts) ? drafts : [drafts];
+    const events = normalizedDrafts.map((draft) => materializeEvent(draft, now));
     this.repository.save({
       cleanExit,
       position: this.position,
       savedAt: now,
       state,
-    }, event);
+    }, events);
     this.lastPersistedActivityMs = state.activity?.accumulatedMs ?? null;
-    if (event !== undefined) this.onActivity?.(structuredClone(event));
+    for (const event of events) this.onActivity?.(structuredClone(event));
   }
 }

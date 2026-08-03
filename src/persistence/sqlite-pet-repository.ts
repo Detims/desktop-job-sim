@@ -30,7 +30,7 @@ import type { PetRepository } from "./pet-repository.js";
 import type { SettingsActivityRepository } from "./settings-activity-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -295,7 +295,10 @@ export class SqlitePetRepository
     }
   }
 
-  save(record: PersistedPetRecord, event?: MeaningfulEvent): void {
+  save(
+    record: PersistedPetRecord,
+    events: readonly MeaningfulEvent[] = [],
+  ): void {
     const validated = PersistedPetRecordSchema.parse(record);
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -318,9 +321,7 @@ export class SqlitePetRepository
           validated.savedAt,
           validated.cleanExit ? 1 : 0,
         );
-      if (event !== undefined) {
-        this.insertEvent(event);
-      }
+      for (const event of events) this.insertEvent(event);
       this.database.exec("COMMIT");
     } catch (error: unknown) {
       this.database.exec("ROLLBACK");
@@ -601,6 +602,10 @@ export class SqlitePetRepository
             DEFAULT_APP_SETTINGS.activityRetention,
             DEFAULT_APP_SETTINGS.settingsVersion,
           );
+      }
+      if (fromVersion < 4) {
+        // Career state is schema-controlled JSON inside pet_runtime. Bumping the
+        // database version still guarantees a verified pre-migration backup.
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

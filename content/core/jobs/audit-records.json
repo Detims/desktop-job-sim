@@ -1,0 +1,11 @@
+{
+  "careerId": "core:clerk",
+  "completionCareerXpBonus": 0,
+  "durationMs": 25000,
+  "id": "core:clerk:audit-records",
+  "name": "Audit Records",
+  "needCosts": { "energy": 12, "hunger": 3, "mood": 3, "thirst": 4 },
+  "requiredRankId": "core:clerk:senior",
+  "rewardCareerXp": 20,
+  "rewardCoins": 30
+}
