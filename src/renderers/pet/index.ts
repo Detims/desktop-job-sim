@@ -41,6 +41,7 @@ const statsOverlay = requiredElement<HTMLElement>("#pet-stats-overlay");
 const workOverlay = requiredElement<HTMLElement>("#work-overlay");
 const workCountdown = requiredElement<HTMLOutputElement>("#work-countdown");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
+const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
 const knowledgeText = requiredElement<HTMLElement>("#knowledge");
@@ -71,6 +72,9 @@ await pixi.init({
   resolution: window.devicePixelRatio,
   width: window.innerWidth,
 });
+// The sprite sheet is intentionally low-frame-rate pixel art. Capping the
+// renderer avoids paying for 60 GPU redraws per second while the pet is idle.
+pixi.ticker.maxFPS = 12;
 
 pixi.canvas.setAttribute("aria-hidden", "true");
 pixi.canvas.tabIndex = 0;
@@ -162,6 +166,12 @@ function renderState(state: PetState): void {
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
   knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;
+  const discouraged = state.conditions["core:discouraged"];
+  conditionStatus.hidden = discouraged === undefined;
+  conditionStatus.textContent =
+    discouraged === undefined
+      ? ""
+      : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
   setPresentation(state.presentation);
 
   const hasActivity = state.activity !== null;

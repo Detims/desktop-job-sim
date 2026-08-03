@@ -7,6 +7,11 @@ import prototypeJob from "../../../content/core/jobs/prototype-job.json" with {
 import prototypeStudy from "../../../content/core/activities/study.json" with {
   type: "json",
 };
+import businessFundamentals from "../../../content/core/activities/business-fundamentals.json" with { type: "json" };
+import officeProcedures from "../../../content/core/activities/office-procedures.json" with { type: "json" };
+import administrativeCareer from "../../../content/core/careers/administrative-assistant.json" with { type: "json" };
+import administrativeExam from "../../../content/core/exams/administrative-assistant.json" with { type: "json" };
+import scheduleCoordination from "../../../content/core/jobs/schedule-coordination.json" with { type: "json" };
 import clerkCareer from "../../../content/core/careers/clerk.json" with {
   type: "json",
 };
@@ -25,10 +30,20 @@ import type {
   PetCommand,
   PetState,
 } from "../../shared/pet-types.js";
+import type { MemoryEntry, MemoryPage } from "../../shared/memory-types.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import "./styles.css";
 
 const clerkJobs = [organizeMail, processForms, auditRecords] as const;
+const businessStudies = [businessFundamentals, officeProcedures] as const;
+
+function readinessLabel(knowledge: number): string {
+  if (knowledge < administrativeExam.riskMinimumKnowledge) return "Locked";
+  if (knowledge >= administrativeExam.guaranteedKnowledge) return "Guaranteed";
+  if (knowledge < 10) return "Risk: Low";
+  if (knowledge < 13) return "Risk: Moderate";
+  return "Risk: High";
+}
 
 function clerkRankIndex(rankId: string): number {
   return clerkCareer.ranks.findIndex((rank) => rank.id === rankId);
@@ -116,6 +131,11 @@ function WorkTab({
   const expectedStudyGain =
     prototypeStudy.rewardKnowledge * (moodMultiplier + deskMultiplier);
   const clerk = state.careers[clerkCareer.id];
+  const administrative = state.careers[administrativeCareer.id];
+  const businessKnowledge =
+    state.knowledge[administrativeExam.knowledgeFieldId] ?? 0;
+  const discouraged = state.conditions[administrativeExam.condition.id];
+  const conditionMultiplier = discouraged === undefined ? 1 : 0.9;
 
   return (
     <section className="tab-panel" aria-labelledby="work-tab">
@@ -146,6 +166,9 @@ function WorkTab({
             <span>{state.mastery.toFixed(1)} mastery</span>
             {clerk !== undefined && (
               <span>{clerk.mastery.toFixed(1)} Clerk XP</span>
+            )}
+            {administrative !== undefined && (
+              <span>{administrative.mastery.toFixed(1)} Admin XP</span>
             )}
             <span>{generalKnowledge.toFixed(1)} knowledge</span>
           </div>
@@ -199,6 +222,53 @@ function WorkTab({
           >
             Start study
           </button>
+        </div>
+      </article>
+
+      <article className="work-category">
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Business Administration</p>
+            <h2>Professional Study</h2>
+          </div>
+          <span className="status idle">{businessKnowledge.toFixed(1)} knowledge</span>
+        </header>
+        <p className="description">
+          Prepare for the Administrative Assistant certification. Both actions
+          contribute to the same Business Administration knowledge track.
+        </p>
+        {discouraged !== undefined && (
+          <aside className="condition-note">
+            Discouraged: study gains are reduced by 10% until {new Date(discouraged.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+          </aside>
+        )}
+        <div className="job-list">
+          {businessStudies.map((study) => {
+            const result =
+              study.rewardKnowledge *
+              (moodMultiplier + deskMultiplier) *
+              conditionMultiplier;
+            return (
+              <article className="job-card" key={study.id}>
+                <div>
+                  <p className="eyebrow">Business Administration</p>
+                  <h3>{study.name}</h3>
+                  <p>
+                    {study.durationMs / 1000}s · {study.rewardKnowledge} base knowledge · {result.toFixed(1)} current result
+                  </p>
+                  <small>{study.needCosts.energy} energy · {study.needCosts.mood} mood</small>
+                </div>
+                <button
+                  className="primary"
+                  disabled={!canStart}
+                  onClick={() => void dispatch({ studyId: study.id, type: "startStudy" })}
+                  type="button"
+                >
+                  Start study
+                </button>
+              </article>
+            );
+          })}
         </div>
       </article>
 
@@ -298,6 +368,46 @@ function WorkTab({
           </div>
         </article>
       )}
+
+      <article className={administrative === undefined ? "work-category locked-career" : "work-category"}>
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Career Jobs</p>
+            <h2>Administrative Office</h2>
+          </div>
+          <span className={administrative === undefined ? "status locked" : "status idle"}>
+            {administrative === undefined ? "Career locked" : "Administrative Assistant"}
+          </span>
+        </header>
+        {administrative === undefined ? (
+          <>
+            <p className="description">
+              Pass the certification exam and start the Administrative Assistant career to unlock Schedule Coordination.
+            </p>
+            <div className="actions">
+              <button className="secondary" onClick={openCareers} type="button">Go to Careers</button>
+            </div>
+          </>
+        ) : (
+          <div className="job-list">
+            <article className="job-card">
+              <div>
+                <p className="eyebrow">Administrative Assistant</p>
+                <h3>{scheduleCoordination.name}</h3>
+                <p>{scheduleCoordination.durationMs / 1000}s · {scheduleCoordination.rewardCoins} coins · {scheduleCoordination.rewardCareerXp} Admin XP</p>
+              </div>
+              <button
+                className="primary"
+                disabled={!canStart}
+                onClick={() => void dispatch({ jobId: scheduleCoordination.id, type: "startCareerJob" })}
+                type="button"
+              >
+                Start job
+              </button>
+            </article>
+          </div>
+        )}
+      </article>
     </section>
   );
 }
@@ -318,6 +428,20 @@ function CareersTab({
   const currentRankIndex = clerk === undefined ? -1 : clerkRankIndex(clerk.rankId);
   const currentRank = clerkCareer.ranks[currentRankIndex];
   const nextRank = clerkCareer.ranks[currentRankIndex + 1];
+  const businessKnowledge =
+    state.knowledge[administrativeExam.knowledgeFieldId] ?? 0;
+  const administrative = state.careers[administrativeCareer.id];
+  const qualified =
+    state.qualifications[administrativeExam.qualificationId] !== undefined;
+  const cooldownUntil = state.examCooldowns[administrativeExam.id] ?? 0;
+  const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+  const canAttemptExam =
+    !qualified &&
+    state.activity === null &&
+    cooldownSeconds === 0 &&
+    businessKnowledge >= administrativeExam.riskMinimumKnowledge &&
+    state.needs.energy >= administrativeExam.minimumEnergy &&
+    state.needs.mood >= administrativeExam.minimumMood;
 
   return (
     <section className="tab-panel" aria-labelledby="careers-tab">
@@ -402,6 +526,142 @@ function CareersTab({
           )}
         </>
       )}
+
+      <article className="career-path-card">
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Qualification career</p>
+            <h2>Administrative Assistant</h2>
+          </div>
+          <span className={administrative === undefined ? "status locked" : "status active"}>
+            {administrative === undefined ? qualified ? "Unlocked" : readinessLabel(businessKnowledge) : "Active"}
+          </span>
+        </header>
+        <p className="description">
+          Pass the certification exam to unlock this career, then explicitly start it before taking Administrative Assistant jobs.
+        </p>
+        <div className="career-summary">
+          <article><span>Business Administration</span><strong>{businessKnowledge.toFixed(1)}</strong></article>
+          <article><span>Qualification</span><strong>{qualified ? "Passed" : "Not earned"}</strong></article>
+          <article><span>Career XP</span><strong>{(administrative?.mastery ?? 0).toFixed(1)}</strong></article>
+        </div>
+
+        {!qualified ? (
+          <div className="career-action">
+            <div>
+              <h3>{administrativeExam.name}</h3>
+              <p>
+                Risk attempt at {administrativeExam.riskMinimumKnowledge}; guaranteed at {administrativeExam.guaranteedKnowledge}. Requires {administrativeExam.minimumEnergy} energy and {administrativeExam.minimumMood} mood. Attempt cost: {administrativeExam.energyCost} energy.
+              </p>
+              {cooldownSeconds > 0 && <small>Cooldown: {cooldownSeconds}s remaining</small>}
+            </div>
+            <button
+              className="primary"
+              disabled={!canAttemptExam}
+              onClick={() => void dispatch({ examId: administrativeExam.id, type: "attemptExam" })}
+              type="button"
+            >
+              Attempt Exam
+            </button>
+          </div>
+        ) : administrative === undefined ? (
+          <div className="career-action">
+            <div>
+              <h3>Career unlocked</h3>
+              <p>The certification is permanent. Enrollment remains an explicit choice.</p>
+            </div>
+            <button
+              className="primary"
+              onClick={() => void dispatch({ careerId: administrativeCareer.id, type: "enrollCareer" })}
+              type="button"
+            >
+              Start Career
+            </button>
+          </div>
+        ) : (
+          <div className="career-action">
+            <div>
+              <h3>Administrative Assistant</h3>
+              <p>Schedule Coordination is available in Work.</p>
+            </div>
+            <span className="status active">Enrolled</span>
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function MemoriesTab({ refreshKey }: { refreshKey: string }) {
+  const [memories, setMemories] = useState<MemoryEntry[]>([]);
+  const [nextCursor, setNextCursor] = useState<MemoryPage["nextCursor"]>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (reset: boolean) => {
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await window.desktopManagement.getMemoryPage({
+        ...(reset || nextCursor === undefined || nextCursor === null
+          ? {}
+          : { before: nextCursor }),
+        limit: 50,
+      });
+      setMemories((current) => reset ? page.memories : [...current, ...page.memories]);
+      setNextCursor(page.nextCursor);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Unable to load memories.");
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, nextCursor]);
+
+  useEffect(() => {
+    void load(true);
+    // A qualification or promotion changes refreshKey and reloads durable memories.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  return (
+    <section className="tab-panel" aria-labelledby="memories-tab">
+      <header className="section-heading">
+        <div>
+          <p className="eyebrow">Life history</p>
+          <h2>Memories</h2>
+        </div>
+        <span className="status idle">Permanent</span>
+      </header>
+      <p className="description">
+        Qualifications and major career milestones live here independently of Activity retention.
+      </p>
+      {error !== null && <div className="error-banner">{error}</div>}
+      {memories.length === 0 && !loading ? (
+        <p className="memory-empty">No lasting memories yet.</p>
+      ) : (
+        <ol className="memory-list">
+          {memories.map((memory) => (
+            <li key={memory.memoryId}>
+              <div>
+                <p className="eyebrow">{memory.category}</p>
+                <h3>{memory.title}</h3>
+                <p>{memory.description}</p>
+              </div>
+              <time dateTime={new Date(memory.occurredAt).toISOString()}>
+                {new Date(memory.occurredAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
+      {nextCursor !== null && nextCursor !== undefined && (
+        <div className="actions">
+          <button className="secondary" disabled={loading} onClick={() => void load(false)} type="button">
+            {loading ? "Loading…" : "Load older"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -409,6 +669,7 @@ function CareersTab({
 function App() {
   const [activeTab, setActiveTab] = useState<ManagementTab>("work");
   const { dispatch, error, state } = usePetState();
+  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}`;
 
   useEffect(
     () => window.desktopManagement.onTabRequested(setActiveTab),
@@ -437,7 +698,7 @@ function App() {
       </header>
 
       <nav className="tabs" aria-label="Management sections">
-        {(["work", "careers"] as const).map((tab) => (
+        {(["work", "careers", "memories"] as const).map((tab) => (
           <button
             aria-selected={activeTab === tab}
             className={activeTab === tab ? "selected" : ""}
@@ -447,7 +708,7 @@ function App() {
             role="tab"
             type="button"
           >
-            {tab === "work" ? "Work" : "Careers"}
+            {tab === "work" ? "Work" : tab === "careers" ? "Careers" : "Memories"}
           </button>
         ))}
       </nav>
@@ -459,8 +720,10 @@ function App() {
           openCareers={() => setActiveTab("careers")}
           state={state}
         />
-      ) : (
+      ) : activeTab === "careers" ? (
         <CareersTab dispatch={dispatch} state={state} />
+      ) : (
+        <MemoriesTab refreshKey={memoryRefreshKey} />
       )}
     </main>
   );

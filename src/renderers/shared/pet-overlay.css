@@ -148,6 +148,16 @@
   flex-wrap: wrap;
 }
 
+#pet-stats-overlay .condition-status {
+  background: #fef3c7;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 5px;
+  padding: 4px 6px;
+}
+
 #pet-stats-overlay button:disabled,
 #pet-stats-overlay input:disabled,
 #pet-stats-overlay select:disabled {

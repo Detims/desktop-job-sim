@@ -69,6 +69,7 @@ const desktopButton = requiredElement<HTMLButtonElement>("#desktop-button");
 const workMenuButton = requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-button");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
+const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
 const knowledgeText = requiredElement<HTMLElement>("#knowledge");
@@ -100,6 +101,9 @@ await pixi.init({
   resolution: window.devicePixelRatio,
   width: ROOM_WIDTH,
 });
+// Furniture and the current pet animation do not benefit from a 60 FPS loop.
+// Keep the Home renderer inexpensive while it coexists with Management.
+pixi.ticker.maxFPS = 12;
 pixi.canvas.setAttribute("aria-label", "Starter room with draggable furniture and pet");
 pixi.canvas.tabIndex = 0;
 canvasRoot.appendChild(pixi.canvas);
@@ -206,6 +210,12 @@ function renderState(state: PetState): void {
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
   knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;
+  const discouraged = state.conditions["core:discouraged"];
+  conditionStatus.hidden = discouraged === undefined;
+  conditionStatus.textContent =
+    discouraged === undefined
+      ? ""
+      : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
   petVisual.tint = state.presentation === "petted" ? 0xffd6e7 : state.presentation === "working" ? 0xfff1b8 : 0xffffff;
 
   workOverlay.hidden = state.activity === null;
