@@ -13,6 +13,10 @@ export type {
   CareerProgress,
   CareerRankDefinition,
   CareerState,
+  ConditionProgress,
+  ConditionState,
+  ExamCooldownState,
+  ExamDefinition,
   JobDefinition,
   KnowledgeState,
   ManagementTab,
@@ -24,6 +28,8 @@ export type {
   PetSnapshot,
   PetState,
   Presentation,
+  QualificationProgress,
+  QualificationState,
   RestDefinition,
   StudyDefinition,
   WindowPoint,
@@ -115,9 +121,32 @@ export const CareerStateSchema = z.record(
   CareerProgressSchema,
 );
 
+export const ConditionProgressSchema = z.object({
+  conditionId: z.string().min(1),
+  expiresAt: z.number().int().nonnegative(),
+});
+export const ConditionStateSchema = z.record(
+  z.string().min(1),
+  ConditionProgressSchema,
+);
+export const ExamCooldownStateSchema = z.record(
+  z.string().min(1),
+  z.number().int().nonnegative(),
+);
+export const QualificationProgressSchema = z.object({
+  earnedAt: z.number().int().nonnegative(),
+  qualificationId: z.string().min(1),
+});
+export const QualificationStateSchema = z.record(
+  z.string().min(1),
+  QualificationProgressSchema,
+);
+
 const CanonicalPetStateSchema = z.object({
   activity: ActiveActivitySchema.nullable(),
   careers: CareerStateSchema,
+  conditions: ConditionStateSchema,
+  examCooldowns: ExamCooldownStateSchema,
   knowledge: KnowledgeStateSchema,
   mastery: z.number().nonnegative(),
   needs: NeedStateSchema,
@@ -125,6 +154,7 @@ const CanonicalPetStateSchema = z.object({
   presentation: PresentationSchema,
   presentationUntil: z.number().nonnegative().nullable(),
   randomSeed: z.number().int().nonnegative(),
+  qualifications: QualificationStateSchema,
   stateVersion: z.number().int().nonnegative(),
   statusText: z.string(),
   updatedAt: z.number().nonnegative(),
@@ -150,7 +180,10 @@ function normalizeLegacyPetState(input: unknown): unknown {
     ...state,
     activity: normalizedActivity,
     careers: state.careers ?? {},
+    conditions: state.conditions ?? {},
+    examCooldowns: state.examCooldowns ?? {},
     knowledge: state.knowledge ?? { "core:general": 0 },
+    qualifications: state.qualifications ?? {},
   };
 }
 
@@ -177,12 +210,13 @@ export const PetPatchSchema = z.object({
 export const PetCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancelActivity") }),
   z.object({ careerId: z.string().min(1), type: z.literal("enrollCareer") }),
+  z.object({ examId: z.string().min(1), type: z.literal("attemptExam") }),
   z.object({ type: z.literal("pet") }),
   z.object({ careerId: z.string().min(1), type: z.literal("promoteCareer") }),
   z.object({ jobId: z.string().min(1), type: z.literal("startCareerJob") }),
   z.object({ type: z.literal("startJob") }),
   z.object({ type: z.literal("startRest") }),
-  z.object({ type: z.literal("startStudy") }),
+  z.object({ studyId: z.string().min(1).optional(), type: z.literal("startStudy") }),
   z.object({ type: z.literal("walk") }),
 ]);
 
@@ -221,6 +255,7 @@ export const CareerDefinitionSchema = z.object({
     fieldId: z.string().min(1),
     minimum: z.number().nonnegative(),
   }),
+  enrollmentQualificationId: z.string().min(1).optional(),
   id: z.string().min(1),
   name: z.string().min(1),
   ranks: z.array(CareerRankDefinitionSchema).min(1),
@@ -246,6 +281,35 @@ export const StudyDefinitionSchema = z.object({
   needCosts: NeedStateSchema,
   rewardKnowledge: z.number().nonnegative(),
 });
+
+export const ExamDefinitionSchema = z.object({
+  coinCost: z.number().nonnegative(),
+  condition: z.object({
+    durationMs: z.number().positive(),
+    id: z.string().min(1),
+    name: z.string().min(1),
+    studyMultiplier: z.number().positive().max(1),
+  }),
+  cooldownMs: z.number().positive(),
+  energyCost: z.number().nonnegative(),
+  failureMoodCost: z.number().nonnegative(),
+  guaranteedKnowledge: z.number().nonnegative(),
+  id: z.string().min(1),
+  knowledgeFieldId: z.string().min(1),
+  minimumEnergy: z.number().min(0).max(100),
+  minimumMood: z.number().min(0).max(100),
+  name: z.string().min(1),
+  qualificationId: z.string().min(1),
+  riskChanceMaximum: z.number().min(0).max(1),
+  riskChanceMinimum: z.number().min(0).max(1),
+  riskMinimumKnowledge: z.number().nonnegative(),
+  unlockCareerId: z.string().min(1),
+}).refine(
+  (definition) =>
+    definition.guaranteedKnowledge > definition.riskMinimumKnowledge &&
+    definition.riskChanceMaximum >= definition.riskChanceMinimum,
+  { message: "Exam thresholds and risk chances must increase." },
+);
 
 export const RestDefinitionSchema = z.object({
   durationMs: z.number().positive(),

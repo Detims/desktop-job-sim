@@ -1,0 +1,11 @@
+{
+  "careerId": "core:administrative-assistant",
+  "completionCareerXpBonus": 0,
+  "durationMs": 20000,
+  "id": "core:administrative-assistant:schedule-coordination",
+  "name": "Schedule Coordination",
+  "needCosts": { "energy": 8, "hunger": 1, "mood": 1, "thirst": 2 },
+  "requiredRankId": "core:administrative-assistant:assistant",
+  "rewardCareerXp": 15,
+  "rewardCoins": 16
+}

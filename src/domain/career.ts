@@ -1,6 +1,9 @@
 import rawClerk from "../../content/core/careers/clerk.json" with {
   type: "json",
 };
+import rawAdministrativeAssistant from "../../content/core/careers/administrative-assistant.json" with {
+  type: "json",
+};
 import rawAuditRecords from "../../content/core/jobs/audit-records.json" with {
   type: "json",
 };
@@ -8,6 +11,9 @@ import rawOrganizeMail from "../../content/core/jobs/organize-mail.json" with {
   type: "json",
 };
 import rawProcessForms from "../../content/core/jobs/process-forms.json" with {
+  type: "json",
+};
+import rawScheduleCoordination from "../../content/core/jobs/schedule-coordination.json" with {
   type: "json",
 };
 import {
@@ -21,17 +27,23 @@ import {
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 
 export const CLERK_CAREER = CareerDefinitionSchema.parse(rawClerk);
+export const ADMINISTRATIVE_ASSISTANT_CAREER =
+  CareerDefinitionSchema.parse(rawAdministrativeAssistant);
 export const CLERK_JOBS = Object.freeze(
   [rawOrganizeMail, rawProcessForms, rawAuditRecords].map((definition) =>
     CareerJobDefinitionSchema.parse(definition),
   ),
 );
+export const ADMINISTRATIVE_ASSISTANT_JOBS = Object.freeze([
+  CareerJobDefinitionSchema.parse(rawScheduleCoordination),
+]);
 
 const careers = new Map<string, CareerDefinition>([
   [CLERK_CAREER.id, CLERK_CAREER],
+  [ADMINISTRATIVE_ASSISTANT_CAREER.id, ADMINISTRATIVE_ASSISTANT_CAREER],
 ]);
 const jobs = new Map<string, CareerJobDefinition>(
-  CLERK_JOBS.map((job) => [job.id, job]),
+  [...CLERK_JOBS, ...ADMINISTRATIVE_ASSISTANT_JOBS].map((job) => [job.id, job]),
 );
 
 function validateContent(): void {
@@ -45,6 +57,17 @@ function validateContent(): void {
   for (const job of CLERK_JOBS) {
     if (job.careerId !== CLERK_CAREER.id || !rankIds.has(job.requiredRankId)) {
       throw new Error(`Career job ${job.id} references invalid Clerk content.`);
+    }
+  }
+  for (const career of careers.values()) {
+    const rankIds = new Set(career.ranks.map((rank) => rank.id));
+    if (rankIds.size !== career.ranks.length || career.ranks[0]?.advancement !== "enrollment") {
+      throw new Error(`${career.name} has invalid rank content.`);
+    }
+    for (const job of jobs.values()) {
+      if (job.careerId === career.id && !rankIds.has(job.requiredRankId)) {
+        throw new Error(`Career job ${job.id} references an invalid rank.`);
+      }
     }
   }
 }
@@ -89,6 +112,8 @@ export function canEnrollCareer(
 ): boolean {
   return (
     state.careers[career.id] === undefined &&
+    (career.enrollmentQualificationId === undefined ||
+      state.qualifications[career.enrollmentQualificationId] !== undefined) &&
     (state.knowledge[career.enrollmentKnowledge.fieldId] ?? 0) >=
       career.enrollmentKnowledge.minimum
   );
@@ -102,6 +127,15 @@ export function enrollCareer(
   const career = getCareerDefinition(careerId);
   if (state.careers[careerId] !== undefined) return state;
   if (!canEnrollCareer(state, career)) {
+    if (
+      career.enrollmentQualificationId !== undefined &&
+      state.qualifications[career.enrollmentQualificationId] === undefined
+    ) {
+      throw new CareerRuleError(
+        "career.qualification_required",
+        "Pass the required qualification exam first.",
+      );
+    }
     throw new CareerRuleError(
       "career.enrollment_requirements",
       `Requires ${career.enrollmentKnowledge.minimum} General Knowledge.`,

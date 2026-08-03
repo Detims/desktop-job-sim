@@ -1,0 +1,23 @@
+{
+  "coinCost": 0,
+  "condition": {
+    "durationMs": 600000,
+    "id": "core:discouraged",
+    "name": "Discouraged",
+    "studyMultiplier": 0.9
+  },
+  "cooldownMs": 300000,
+  "energyCost": 10,
+  "failureMoodCost": 10,
+  "guaranteedKnowledge": 15,
+  "id": "core:administrative-assistant-exam",
+  "knowledgeFieldId": "core:business-administration",
+  "minimumEnergy": 30,
+  "minimumMood": 40,
+  "name": "Administrative Assistant Certification Exam",
+  "qualificationId": "core:administrative-assistant-certification",
+  "riskChanceMaximum": 0.9,
+  "riskChanceMinimum": 0.4,
+  "riskMinimumKnowledge": 8,
+  "unlockCareerId": "core:administrative-assistant"
+}

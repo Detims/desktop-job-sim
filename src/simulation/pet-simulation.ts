@@ -4,13 +4,9 @@ import rawPrototypeJob from "../../content/core/jobs/prototype-job.json" with {
 import rawRest from "../../content/core/activities/rest.json" with {
   type: "json",
 };
-import rawStudy from "../../content/core/activities/study.json" with {
-  type: "json",
-};
 import {
   JobDefinitionSchema,
   RestDefinitionSchema,
-  StudyDefinitionSchema,
   type ActiveActivity,
   type ActivityBonuses,
   type JobDefinition,
@@ -25,10 +21,15 @@ import {
   isCareerJobUnlocked,
   reconcileCareerProgression,
 } from "../domain/career.js";
+import {
+  activeStudyConditionMultiplier,
+  reconcileTimedState,
+} from "../domain/exam.js";
+import { getStudyDefinition } from "../domain/study.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
-export const PROTOTYPE_STUDY = StudyDefinitionSchema.parse(rawStudy);
+export const PROTOTYPE_STUDY = getStudyDefinition("core:general-study");
 
 export const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
   energy: 1.5,
@@ -89,6 +90,8 @@ export function createInitialPetState(now: number): PetState {
   return {
     activity: null,
     careers: {},
+    conditions: {},
+    examCooldowns: {},
     knowledge: { "core:general": 0 },
     mastery: 0,
     needs: {
@@ -101,6 +104,7 @@ export function createInitialPetState(now: number): PetState {
     presentation: "idle",
     presentationUntil: null,
     randomSeed: 0x5eed,
+    qualifications: {},
     stateVersion: 0,
     statusText: "Ready to play.",
     updatedAt: now,
@@ -186,7 +190,8 @@ export function startPrototypeStudy(
       definitionId: definition.id,
       durationMs: definition.durationMs,
       gainMultiplier:
-        moodStudyMultiplier(state.needs.mood) + boundedBonus(bonuses.studyGain),
+        (moodStudyMultiplier(state.needs.mood) + boundedBonus(bonuses.studyGain)) *
+        activeStudyConditionMultiplier(state),
       knowledgeFieldId: definition.knowledgeFieldId,
       startedAt: now,
       type: "study",
@@ -195,6 +200,15 @@ export function startPrototypeStudy(
     presentationUntil: null,
     statusText: `Studying: ${definition.name}`,
   };
+}
+
+export function startStudy(
+  state: PetState,
+  now: number,
+  bonuses: ActivityBonuses,
+  studyId = PROTOTYPE_STUDY.id,
+): PetState {
+  return startPrototypeStudy(state, now, bonuses, getStudyDefinition(studyId));
 }
 
 export function startPrototypeRest(
@@ -330,6 +344,7 @@ export function advancePetState(
   studyDefinition: StudyDefinition = PROTOTYPE_STUDY,
   restDefinition: RestDefinition = PROTOTYPE_REST,
 ): PetState {
+  state = reconcileTimedState(state, now);
   const safeElapsedMs = Math.max(0, elapsedMs);
   if (state.activity?.type === "rest") {
     return advanceRest(
@@ -435,11 +450,15 @@ export function advancePetState(
         };
       }
     } else {
+      const resolvedStudyDefinition =
+        activity.definitionId === studyDefinition.id
+          ? studyDefinition
+          : getStudyDefinition(activity.definitionId);
       const targetKnowledge =
-        studyDefinition.rewardKnowledge * activity.gainMultiplier * progress;
+        resolvedStudyDefinition.rewardKnowledge * activity.gainMultiplier * progress;
       needs = applyNeedDelta(
         needs,
-        studyDefinition.needCosts,
+        resolvedStudyDefinition.needCosts,
         activeElapsedMs / activity.durationMs,
       );
       knowledge = {
@@ -451,7 +470,7 @@ export function advancePetState(
       };
       if (nextAccumulatedMs >= activity.durationMs) {
         activity = null;
-        statusText = `Completed ${studyDefinition.name}.`;
+        statusText = `Completed ${resolvedStudyDefinition.name}.`;
       } else {
         activity = {
           ...activity,

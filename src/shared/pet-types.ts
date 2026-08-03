@@ -14,6 +14,21 @@ export interface ActivityBonuses {
 
 export type KnowledgeState = Readonly<Record<string, number>>;
 
+export interface QualificationProgress {
+  earnedAt: number;
+  qualificationId: string;
+}
+
+export type QualificationState = Readonly<Record<string, QualificationProgress>>;
+
+export interface ConditionProgress {
+  conditionId: string;
+  expiresAt: number;
+}
+
+export type ConditionState = Readonly<Record<string, ConditionProgress>>;
+export type ExamCooldownState = Readonly<Record<string, number>>;
+
 export interface CareerProgress {
   careerId: string;
   enrolledAt: number;
@@ -75,6 +90,8 @@ export type ActiveActivity =
 export interface PetState {
   activity: ActiveActivity | null;
   careers: CareerState;
+  conditions: ConditionState;
+  examCooldowns: ExamCooldownState;
   knowledge: KnowledgeState;
   mastery: number;
   needs: NeedState;
@@ -82,6 +99,7 @@ export interface PetState {
   presentation: Presentation;
   presentationUntil: number | null;
   randomSeed: number;
+  qualifications: QualificationState;
   stateVersion: number;
   statusText: string;
   updatedAt: number;
@@ -105,12 +123,13 @@ export interface PetPatch {
 export type PetCommand =
   | { type: "cancelActivity" }
   | { careerId: string; type: "enrollCareer" }
+  | { examId: string; type: "attemptExam" }
   | { type: "pet" }
   | { careerId: string; type: "promoteCareer" }
   | { jobId: string; type: "startCareerJob" }
   | { type: "startJob" }
   | { type: "startRest" }
-  | { type: "startStudy" }
+  | { studyId?: string | undefined; type: "startStudy" }
   | { type: "walk" };
 
 export interface WindowPoint {
@@ -148,6 +167,7 @@ export interface CareerDefinition {
     fieldId: string;
     minimum: number;
   };
+  enrollmentQualificationId?: string | undefined;
   id: string;
   name: string;
   ranks: readonly CareerRankDefinition[];
@@ -172,6 +192,30 @@ export interface StudyDefinition {
   name: string;
   needCosts: NeedState;
   rewardKnowledge: number;
+}
+
+export interface ExamDefinition {
+  coinCost: number;
+  condition: {
+    durationMs: number;
+    id: string;
+    name: string;
+    studyMultiplier: number;
+  };
+  cooldownMs: number;
+  energyCost: number;
+  failureMoodCost: number;
+  guaranteedKnowledge: number;
+  id: string;
+  knowledgeFieldId: string;
+  minimumEnergy: number;
+  minimumMood: number;
+  name: string;
+  qualificationId: string;
+  riskChanceMaximum: number;
+  riskChanceMinimum: number;
+  riskMinimumKnowledge: number;
+  unlockCareerId: string;
 }
 
 export interface RestDefinition {
