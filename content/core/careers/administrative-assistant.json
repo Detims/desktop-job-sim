@@ -1,0 +1,18 @@
+{
+  "id": "core:administrative-assistant",
+  "name": "Administrative Assistant",
+  "enrollmentKnowledge": {
+    "fieldId": "core:business-administration",
+    "minimum": 0
+  },
+  "enrollmentQualificationId": "core:administrative-assistant-certification",
+  "ranks": [
+    {
+      "advancement": "enrollment",
+      "id": "core:administrative-assistant:assistant",
+      "name": "Administrative Assistant",
+      "requiredKnowledge": 0,
+      "requiredMastery": 0
+    }
+  ]
+}

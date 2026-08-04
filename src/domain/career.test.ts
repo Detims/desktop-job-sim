@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createInitialPetState } from "../simulation/pet-simulation.js";
 import {
+  ADMINISTRATIVE_ASSISTANT_CAREER,
   CLERK_CAREER,
   CLERK_JOBS,
   CareerRuleError,
@@ -86,5 +87,29 @@ describe("Clerk career progression", () => {
       },
     };
     expect(CLERK_JOBS.every((job) => isCareerJobUnlocked(senior, job))).toBe(true);
+  });
+});
+
+describe("Administrative Assistant career progression", () => {
+  it("requires the certification before explicit enrollment", () => {
+    const state = knowledgeableState(25);
+    expect(() =>
+      enrollCareer(state, ADMINISTRATIVE_ASSISTANT_CAREER.id, 1),
+    ).toThrow("qualification exam");
+
+    const qualified = {
+      ...state,
+      qualifications: {
+        "core:administrative-assistant-certification": {
+          earnedAt: 1,
+          qualificationId: "core:administrative-assistant-certification",
+        },
+      },
+    };
+    expect(
+      enrollCareer(qualified, ADMINISTRATIVE_ASSISTANT_CAREER.id, 2).careers[
+        ADMINISTRATIVE_ASSISTANT_CAREER.id
+      ]?.rankId,
+    ).toBe("core:administrative-assistant:assistant");
   });
 });

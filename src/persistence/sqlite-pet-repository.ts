@@ -11,12 +11,18 @@ import { DatabaseSync } from "node:sqlite";
 import { assertValidHomeLayout } from "../domain/home-layout.js";
 import { HomeLayoutSchema } from "../shared/home-contracts.js";
 import { PersistedPetRecordSchema } from "../shared/contracts.js";
+import { MemoryEntrySchema } from "../shared/memory-contracts.js";
 import {
   AppSettingsSchema,
   MeaningfulEventSchema,
 } from "../shared/settings-activity-contracts.js";
 import type { HomeLayout } from "../shared/home-types.js";
 import type { PersistedPetRecord } from "../shared/pet-types.js";
+import type {
+  MemoryCursor,
+  MemoryEntry,
+  MemoryPage,
+} from "../shared/memory-types.js";
 import {
   DEFAULT_APP_SETTINGS,
   type ActivityCursor,
@@ -28,9 +34,10 @@ import type { DiagnosticLogger } from "./diagnostic-logger.js";
 import type { HomeLayoutRepository } from "./home-layout-repository.js";
 import type { PetRepository } from "./pet-repository.js";
 import type { SettingsActivityRepository } from "./settings-activity-repository.js";
+import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -71,8 +78,17 @@ interface EventRow {
   type: string;
 }
 
+interface MemoryRow {
+  category: string;
+  description: string;
+  memory_id: string;
+  occurred_at: number;
+  pet_id: string;
+  title: string;
+}
+
 export class SqlitePetRepository
-  implements PetRepository, HomeLayoutRepository, SettingsActivityRepository
+  implements PetRepository, HomeLayoutRepository, MemoryRepository, SettingsActivityRepository
 {
   private constructor(
     private database: DatabaseSync,
@@ -295,9 +311,67 @@ export class SqlitePetRepository
     }
   }
 
+  loadMemoryPage(
+    before: MemoryCursor | undefined,
+    limit: number,
+  ): MemoryPage {
+    try {
+      const boundedLimit = Math.min(100, Math.max(1, Math.trunc(limit)));
+      const rows = (before === undefined
+        ? this.database
+            .prepare(
+              `SELECT memory_id, occurred_at, pet_id, category, title, description
+                 FROM life_memory
+                ORDER BY occurred_at DESC, memory_id DESC
+                LIMIT ?`,
+            )
+            .all(boundedLimit + 1)
+        : this.database
+            .prepare(
+              `SELECT memory_id, occurred_at, pet_id, category, title, description
+                 FROM life_memory
+                WHERE occurred_at < ? OR (occurred_at = ? AND memory_id < ?)
+                ORDER BY occurred_at DESC, memory_id DESC
+                LIMIT ?`,
+            )
+            .all(
+              before.occurredAt,
+              before.occurredAt,
+              before.memoryId,
+              boundedLimit + 1,
+            )) as unknown as MemoryRow[];
+      const hasMore = rows.length > boundedLimit;
+      const memories = rows.slice(0, boundedLimit).map((row) =>
+        MemoryEntrySchema.parse({
+          category: row.category,
+          description: row.description,
+          memoryId: row.memory_id,
+          occurredAt: row.occurred_at,
+          petId: row.pet_id,
+          title: row.title,
+        }) as MemoryEntry,
+      );
+      const last = memories.at(-1);
+      return {
+        memories,
+        nextCursor:
+          hasMore && last !== undefined
+            ? { memoryId: last.memoryId, occurredAt: last.occurredAt }
+            : null,
+      };
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.memory_invalid",
+        "Persisted life memories failed validation.",
+        error,
+      );
+    }
+  }
+
   save(
     record: PersistedPetRecord,
     events: readonly MeaningfulEvent[] = [],
+    memories: readonly MemoryEntry[] = [],
   ): void {
     const validated = PersistedPetRecordSchema.parse(record);
     this.database.exec("BEGIN IMMEDIATE");
@@ -322,6 +396,7 @@ export class SqlitePetRepository
           validated.cleanExit ? 1 : 0,
         );
       for (const event of events) this.insertEvent(event);
+      for (const memory of memories) this.insertMemory(memory);
       this.database.exec("COMMIT");
     } catch (error: unknown) {
       this.database.exec("ROLLBACK");
@@ -489,6 +564,24 @@ export class SqlitePetRepository
       );
   }
 
+  private insertMemory(memory: MemoryEntry): void {
+    const validated = MemoryEntrySchema.parse(memory);
+    this.database
+      .prepare(
+        `INSERT INTO life_memory (
+           memory_id, occurred_at, pet_id, category, title, description
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        validated.memoryId,
+        validated.occurredAt,
+        validated.petId,
+        validated.category,
+        validated.title,
+        validated.description,
+      );
+  }
+
   private wrapAndLog(
     eventCode: string,
     message: string,
@@ -606,6 +699,20 @@ export class SqlitePetRepository
       if (fromVersion < 4) {
         // Career state is schema-controlled JSON inside pet_runtime. Bumping the
         // database version still guarantees a verified pre-migration backup.
+      }
+      if (fromVersion < 5) {
+        database.exec(`
+          CREATE TABLE life_memory (
+            memory_id TEXT PRIMARY KEY,
+            occurred_at INTEGER NOT NULL CHECK (occurred_at >= 0),
+            pet_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL
+          ) STRICT;
+          CREATE INDEX life_memory_chronology
+            ON life_memory (occurred_at DESC, memory_id DESC);
+        `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

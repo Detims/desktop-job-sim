@@ -5,6 +5,7 @@ import {
   MAX_OFFLINE_ELAPSED_MS,
   OFFLINE_NEED_RATE,
 } from "../simulation/pet-simulation.js";
+import { reconcileTimedState } from "../domain/exam.js";
 
 export type RecoveryDiagnosticCode =
   | "recovery.clean_start"
@@ -57,6 +58,7 @@ export function recoverPetState(
     now,
     onlineNeedMultiplier * OFFLINE_NEED_RATE,
   );
+  state = reconcileTimedState(state, now);
   state = {
     ...state,
     stateVersion: state.stateVersion + 1,

@@ -1,0 +1,8 @@
+{
+  "durationMs": 15000,
+  "id": "core:business-fundamentals",
+  "knowledgeFieldId": "core:business-administration",
+  "name": "Business Fundamentals",
+  "needCosts": { "energy": 5, "hunger": 0, "mood": 2, "thirst": 0 },
+  "rewardKnowledge": 10
+}

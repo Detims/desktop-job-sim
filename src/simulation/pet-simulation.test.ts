@@ -10,6 +10,7 @@ import {
   startPrototypeJob,
   startPrototypeRest,
   startPrototypeStudy,
+  startStudy,
   startCareerJob,
 } from "./pet-simulation.js";
 import { CLERK_CAREER, CLERK_JOBS, enrollCareer } from "../domain/career.js";
@@ -168,6 +169,31 @@ describe("pet simulation", () => {
     expect(withoutDesk.knowledge["core:general"]).toBeCloseTo(10);
     expect(withDesk.knowledge["core:general"]).toBeCloseTo(10.5);
     expect(withDesk.activity).toBeNull();
+  });
+
+  it("applies Discouraged after mood and furniture study modifiers", () => {
+    const initial = createInitialPetState(0);
+    const discouraged = {
+      ...initial,
+      conditions: {
+        "core:discouraged": {
+          conditionId: "core:discouraged",
+          expiresAt: 60_000,
+        },
+      },
+    };
+    const completed = advancePetState(
+      startStudy(
+        discouraged,
+        0,
+        FURNITURE_BONUSES,
+        "core:business-fundamentals",
+      ),
+      15_000,
+      15_000,
+    );
+
+    expect(completed.knowledge["core:business-administration"]).toBeCloseTo(11.25);
   });
 
   it("produces the same study result for one tick or many ticks", () => {

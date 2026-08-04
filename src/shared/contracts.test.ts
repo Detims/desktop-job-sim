@@ -7,7 +7,10 @@ describe("pet-state contracts", () => {
   it("normalizes a legacy persisted job and missing knowledge and career state", () => {
     const legacy = createInitialPetState(0) as unknown as Record<string, unknown>;
     delete legacy.careers;
+    delete legacy.conditions;
+    delete legacy.examCooldowns;
     delete legacy.knowledge;
+    delete legacy.qualifications;
     legacy.activity = {
       accumulatedMs: 5_000,
       creditedCoins: 4,
@@ -20,7 +23,10 @@ describe("pet-state contracts", () => {
     const parsed = PetStateSchema.parse(legacy);
 
     expect(parsed.careers).toEqual({});
+    expect(parsed.conditions).toEqual({});
+    expect(parsed.examCooldowns).toEqual({});
     expect(parsed.knowledge).toEqual({ "core:general": 0 });
+    expect(parsed.qualifications).toEqual({});
     expect(parsed.activity).toEqual(expect.objectContaining({ type: "job" }));
   });
 });

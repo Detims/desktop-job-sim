@@ -8,6 +8,8 @@ import type {
   MeaningfulEventDraft,
 } from "../shared/settings-activity-types.js";
 import type { PetRepository } from "./pet-repository.js";
+import { materializeMemory } from "../shared/memory.js";
+import type { MemoryEntryDraft } from "../shared/memory-types.js";
 
 export const ACTIVITY_CHECKPOINT_INTERVAL_MS = 5_000;
 
@@ -54,16 +56,18 @@ export class PersistenceSession {
     state: PetState,
     now: number,
     events?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
+    memories?: MemoryEntryDraft | readonly MemoryEntryDraft[],
   ): void {
-    this.save(state, now, true, events);
+    this.save(state, now, true, events, memories);
   }
 
   saveCommand(
     state: PetState,
     now: number,
     events?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
+    memories?: MemoryEntryDraft | readonly MemoryEntryDraft[],
   ): void {
-    this.save(state, now, false, events);
+    this.save(state, now, false, events, memories);
   }
 
   savePosition(position: WindowPoint, state: PetState, now: number): void {
@@ -76,16 +80,26 @@ export class PersistenceSession {
     now: number,
     cleanExit: boolean,
     drafts?: MeaningfulEventDraft | readonly MeaningfulEventDraft[],
+    memoryDrafts?: MemoryEntryDraft | readonly MemoryEntryDraft[],
   ): void {
     const normalizedDrafts =
       drafts === undefined ? [] : Array.isArray(drafts) ? drafts : [drafts];
     const events = normalizedDrafts.map((draft) => materializeEvent(draft, now));
+    const normalizedMemoryDrafts =
+      memoryDrafts === undefined
+        ? []
+        : Array.isArray(memoryDrafts)
+          ? memoryDrafts
+          : [memoryDrafts];
+    const memories = normalizedMemoryDrafts.map((draft) =>
+      materializeMemory(draft, now),
+    );
     this.repository.save({
       cleanExit,
       position: this.position,
       savedAt: now,
       state,
-    }, events);
+    }, events, memories);
     this.lastPersistedActivityMs = state.activity?.accumulatedMs ?? null;
     for (const event of events) this.onActivity?.(structuredClone(event));
   }

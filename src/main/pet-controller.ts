@@ -1,9 +1,11 @@
 import { SequentialCommandQueue } from "../domain/command-queue.js";
 import {
   careerEventDrafts,
+  careerMemoryDrafts,
   enrollCareer,
   promoteCareer,
 } from "../domain/career.js";
+import { attemptExam, reconcileTimedState } from "../domain/exam.js";
 import {
   type ActivityBonuses,
   type PetCommand,
@@ -19,16 +21,18 @@ import {
   startCareerJob,
   startPrototypeJob,
   startPrototypeRest,
-  startPrototypeStudy,
+  startStudy,
 } from "../simulation/pet-simulation.js";
 import { NO_ACTIVITY_BONUSES } from "../domain/furniture-bonuses.js";
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
+import type { MemoryEntryDraft } from "../shared/memory-types.js";
 
 type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (
   state: PetState,
   now: number,
   events?: readonly MeaningfulEventDraft[],
+  memories?: readonly MemoryEntryDraft[],
 ) => void;
 
 export class PetController {
@@ -97,6 +101,35 @@ export class PetController {
   dispatch(command: PetCommand, now: number): Promise<PetSnapshot> {
     return this.commandQueue.enqueue(() => {
       switch (command.type) {
+        case "attemptExam": {
+          const resolution = attemptExam(this.state, command.examId, now);
+          const passed = resolution.outcome !== "failed";
+          this.commit(
+            resolution.state,
+            now,
+            [{
+              details: {
+                examId: resolution.definition.id,
+                outcome: resolution.outcome,
+                qualificationId: resolution.definition.qualificationId,
+              },
+              petId: this.state.petId,
+              summary: passed
+                ? `Passed ${resolution.definition.name}.`
+                : `${resolution.definition.name} attempt was unsuccessful.`,
+              type: passed ? "exam.passed" : "exam.failed",
+            }],
+            passed
+              ? [{
+                  category: "qualification",
+                  description: `Passed ${resolution.definition.name} and unlocked the Administrative Assistant career.`,
+                  petId: this.state.petId,
+                  title: "Administrative Assistant Certified",
+                }]
+              : undefined,
+          );
+          break;
+        }
         case "cancelActivity":
           this.commit(
             cancelActiveActivity(this.state),
@@ -162,10 +195,11 @@ export class PetController {
           break;
         }
         case "startStudy": {
-          const next = startPrototypeStudy(
-            this.state,
+          const next = startStudy(
+            reconcileTimedState(this.state, now),
             now,
             this.activityBonuses,
+            command.studyId,
           );
           this.commit(
             next,
@@ -178,7 +212,12 @@ export class PetController {
         }
         case "promoteCareer": {
           const next = promoteCareer(this.state, command.careerId);
-          this.commit(next, now, careerEventDrafts(this.state, next));
+          this.commit(
+            next,
+            now,
+            careerEventDrafts(this.state, next),
+            careerMemoryDrafts(this.state, next),
+          );
           break;
         }
         case "startCareerJob": {
@@ -243,6 +282,7 @@ export class PetController {
     nextState: PetState,
     durableAt?: number,
     events?: readonly MeaningfulEventDraft[],
+    memories?: readonly MemoryEntryDraft[],
   ): void {
     if (nextState === this.state) {
       return;
@@ -253,12 +293,15 @@ export class PetController {
     const changes: PetMutableState = {
       activity: nextState.activity,
       careers: nextState.careers,
+      conditions: nextState.conditions,
+      examCooldowns: nextState.examCooldowns,
       knowledge: nextState.knowledge,
       mastery: nextState.mastery,
       needs: nextState.needs,
       presentation: nextState.presentation,
       presentationUntil: nextState.presentationUntil,
       randomSeed: nextState.randomSeed,
+      qualifications: nextState.qualifications,
       statusText: nextState.statusText,
       updatedAt: nextState.updatedAt,
       wallet: nextState.wallet,
@@ -270,7 +313,7 @@ export class PetController {
     };
 
     if (durableAt !== undefined) {
-      this.durableCommit?.(committedState, durableAt, events);
+      this.durableCommit?.(committedState, durableAt, events, memories);
     }
 
     this.state = committedState;
