@@ -26,6 +26,12 @@ import {
 import { NO_ACTIVITY_BONUSES } from "../domain/furniture-bonuses.js";
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 import type { MemoryEntryDraft } from "../shared/memory-types.js";
+import {
+  comfortPet,
+  purchaseCareItem,
+  useCareItem,
+} from "../domain/care.js";
+import { getCareItem } from "../domain/care-items.js";
 
 type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (
@@ -76,6 +82,7 @@ export class PetController {
   tick(elapsedMs: number, now: number): PetSnapshot {
     const priorState = this.state;
     const priorActivity = this.state.activity;
+    const priorIllness = this.state.care.seriousIllness;
     const next = advancePetState(
       this.state,
       elapsedMs,
@@ -83,6 +90,10 @@ export class PetController {
       this.passiveNeedMultiplier,
     );
     const events = careerEventDrafts(priorState, next);
+    const illnessStarted =
+      priorIllness === null && next.care.seriousIllness !== null;
+    const illnessRecovered =
+      priorIllness !== null && next.care.seriousIllness === null;
     if (priorActivity !== null && next.activity === null) {
       events.unshift({
             details: {
@@ -90,17 +101,57 @@ export class PetController {
               definitionId: priorActivity.definitionId,
             },
             petId: this.state.petId,
-            summary: `${priorActivity.type} completed.`,
-            type: "activity.completed",
+            summary: illnessStarted
+              ? `${priorActivity.type} stopped by Serious Illness; partial progress kept.`
+              : `${priorActivity.type} completed.`,
+            type: illnessStarted ? "activity.cancelled" : "activity.completed",
           });
     }
-    this.commit(next, events.length > 0 ? now : undefined, events);
+    if (illnessStarted) {
+      events.push({
+        details: { health: next.care.health },
+        petId: next.petId,
+        summary: "Serious Illness began.",
+        type: "care.serious_illness",
+      });
+    }
+    if (illnessRecovered) {
+      events.push({
+        details: { health: next.care.health },
+        petId: next.petId,
+        summary: "Recovered from Serious Illness.",
+        type: "care.recovered",
+      });
+    }
+    this.commit(
+      next,
+      events.length > 0 ? now : undefined,
+      events,
+      illnessRecovered
+        ? [{
+            category: "illness",
+            description: "Recovered from a Serious Illness and returned to ordinary life.",
+            petId: next.petId,
+            title: "Recovered from Serious Illness",
+          }]
+        : undefined,
+    );
     return this.getSnapshot();
   }
 
   dispatch(command: PetCommand, now: number): Promise<PetSnapshot> {
     return this.commandQueue.enqueue(() => {
       switch (command.type) {
+        case "comfort": {
+          const next = comfortPet(this.state, now);
+          this.commit(next, now, [{
+            details: { mood: next.needs.mood, stress: next.care.stress },
+            petId: next.petId,
+            summary: "Comforted the pet.",
+            type: "care.comforted",
+          }]);
+          break;
+        }
         case "attemptExam": {
           const resolution = attemptExam(this.state, command.examId, now);
           const passed = resolution.outcome !== "failed";
@@ -168,6 +219,17 @@ export class PetController {
             now,
           );
           break;
+        case "purchaseItem": {
+          const item = getCareItem(command.itemId);
+          const next = purchaseCareItem(this.state, command.itemId);
+          this.commit(next, now, [{
+            details: { itemId: item.id, price: item.price },
+            petId: next.petId,
+            summary: `Purchased ${item.name}.`,
+            type: "care.item_purchased",
+          }]);
+          break;
+        }
         case "startJob": {
           const next = startPrototypeJob(this.state, now);
           this.commit(
@@ -210,6 +272,17 @@ export class PetController {
           );
           break;
         }
+        case "useItem": {
+          const item = getCareItem(command.itemId);
+          const next = useCareItem(this.state, command.itemId, now);
+          this.commit(next, now, [{
+            details: { itemId: item.id },
+            petId: next.petId,
+            summary: `Used ${item.name}.`,
+            type: "care.item_used",
+          }]);
+          break;
+        }
         case "promoteCareer": {
           const next = promoteCareer(this.state, command.careerId);
           this.commit(
@@ -232,7 +305,10 @@ export class PetController {
           break;
         }
         case "walk":
-          if (this.state.activity === null) {
+          if (
+            this.state.activity === null &&
+            this.state.care.seriousIllness === null
+          ) {
             this.commit(
               {
                 ...this.state,
@@ -292,6 +368,7 @@ export class PetController {
     const nextVersion = baseVersion + 1;
     const changes: PetMutableState = {
       activity: nextState.activity,
+      care: nextState.care,
       careers: nextState.careers,
       conditions: nextState.conditions,
       examCooldowns: nextState.examCooldowns,
@@ -304,7 +381,7 @@ export class PetController {
       qualifications: nextState.qualifications,
       statusText: nextState.statusText,
       updatedAt: nextState.updatedAt,
-      wallet: nextState.wallet,
+      household: nextState.household,
     };
 
     const committedState: PetState = {

@@ -41,7 +41,7 @@ describe("pet simulation", () => {
     const working = startCareerJob(enrolled, 0, CLERK_JOBS[0]!.id);
     const halfway = advancePetState(working, 7_500, 7_500);
 
-    expect(halfway.wallet).toBeCloseTo(5);
+    expect(halfway.household.wallet).toBeCloseTo(5);
     expect(halfway.careers[CLERK_CAREER.id]?.mastery).toBeCloseTo(5);
     expect(halfway.mastery).toBe(0);
     expect(cancelActiveActivity(halfway).careers[CLERK_CAREER.id]?.mastery)
@@ -68,7 +68,7 @@ describe("pet simulation", () => {
     const oneTick = advanceInSteps(1, PROTOTYPE_JOB.durationMs);
     const manyTicks = advanceInSteps(15, PROTOTYPE_JOB.durationMs / 15);
 
-    expect(manyTicks.wallet).toBeCloseTo(oneTick.wallet, 8);
+    expect(manyTicks.household.wallet).toBeCloseTo(oneTick.household.wallet, 8);
     expect(manyTicks.mastery).toBeCloseTo(oneTick.mastery, 8);
     expect(manyTicks.needs.energy).toBeCloseTo(oneTick.needs.energy, 8);
     expect(manyTicks.needs.hunger).toBeCloseTo(oneTick.needs.hunger, 8);
@@ -94,9 +94,9 @@ describe("pet simulation", () => {
       startedAt + PROTOTYPE_JOB.durationMs * 2,
     );
 
-    expect(cancelled.wallet).toBeCloseTo(PROTOTYPE_JOB.rewardCoins / 2);
+    expect(cancelled.household.wallet).toBeCloseTo(PROTOTYPE_JOB.rewardCoins / 2);
     expect(cancelled.mastery).toBeCloseTo(PROTOTYPE_JOB.rewardMastery / 2);
-    expect(later.wallet).toBeCloseTo(cancelled.wallet);
+    expect(later.household.wallet).toBeCloseTo(cancelled.household.wallet);
     expect(later.mastery).toBeCloseTo(cancelled.mastery);
     expect(later.activity).toBeNull();
   });
@@ -109,7 +109,7 @@ describe("pet simulation", () => {
       completed.updatedAt + PROTOTYPE_JOB.durationMs,
     );
 
-    expect(completed.wallet).toBeCloseTo(PROTOTYPE_JOB.rewardCoins);
+    expect(completed.household.wallet).toBeCloseTo(PROTOTYPE_JOB.rewardCoins);
     expect(completed.mastery).toBeCloseTo(
       PROTOTYPE_JOB.rewardMastery +
         PROTOTYPE_JOB.completionMasteryBonus,

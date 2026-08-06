@@ -206,7 +206,7 @@ function renderState(state: PetState): void {
   for (const name of Object.keys(needElements) as (keyof NeedState)[]) {
     needElements[name].value = state.needs[name];
   }
-  walletText.textContent = `${state.wallet.toFixed(1)}c`;
+  walletText.textContent = `${state.household.wallet.toFixed(1)}c`;
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
   knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;

@@ -162,7 +162,7 @@ function WorkTab({
           </div>
           <progress value={progress} max="100" />
           <div className="activity-line earnings">
-            <span>{state.wallet.toFixed(1)} coins</span>
+            <span>{state.household.wallet.toFixed(1)} coins</span>
             <span>{state.mastery.toFixed(1)} mastery</span>
             {clerk !== undefined && (
               <span>{clerk.mastery.toFixed(1)} Clerk XP</span>
@@ -692,7 +692,7 @@ function App() {
           <h1>Work &amp; Careers</h1>
         </div>
         <div className="account-summary">
-          <span>{state.wallet.toFixed(1)} coins</span>
+          <span>{state.household.wallet.toFixed(1)} coins</span>
           <span>{state.mastery.toFixed(1)} mastery</span>
         </div>
       </header>

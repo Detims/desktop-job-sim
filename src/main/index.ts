@@ -37,6 +37,7 @@ import {
   type MeaningfulEventDraft,
 } from "../shared/settings-activity-types.js";
 import type { PetState } from "../shared/pet-types.js";
+import type { MemoryEntryDraft } from "../shared/memory-types.js";
 import { DiagnosticLogger } from "../persistence/diagnostic-logger.js";
 import { PersistenceError } from "../persistence/persistence-error.js";
 import { PersistenceSession } from "../persistence/persistence-session.js";
@@ -735,16 +736,17 @@ app.whenReady().then(() => {
     );
     let initialState: PetState;
     let initialPosition = { x: defaultBounds.x, y: defaultBounds.y };
-    let startupEvent: MeaningfulEventDraft;
+    let startupEvents: MeaningfulEventDraft[];
+    let startupMemories: MemoryEntryDraft[] = [];
 
     if (persisted === null) {
       initialState = createInitialPetState(now);
-      startupEvent = {
+      startupEvents = [{
         details: { newProfile: true },
         petId: initialState.petId,
         summary: "New pet profile started.",
         type: "startup.recovered",
-      };
+      }];
       diagnosticLogger.write(
         "info",
         "database.profile_created",
@@ -760,7 +762,7 @@ app.whenReady().then(() => {
       );
       initialState = recovery.state;
       initialPosition = persisted.position;
-      startupEvent =
+      startupEvents = [
         !persisted.cleanExit && persisted.state.activity !== null
           ? {
               details: {
@@ -777,7 +779,22 @@ app.whenReady().then(() => {
               petId: persisted.state.petId,
               summary: "Pet state recovered at startup.",
               type: "startup.recovered",
-            };
+            },
+      ];
+      if (recovery.illnessRecovered) {
+        startupEvents.push({
+          details: { health: recovery.state.care.health },
+          petId: recovery.state.petId,
+          summary: "Recovered from Serious Illness while away.",
+          type: "care.recovered",
+        });
+        startupMemories = [{
+          category: "illness",
+          description: "Recovered from a Serious Illness while the application was closed.",
+          petId: recovery.state.petId,
+          title: "Recovered from Serious Illness",
+        }];
+      }
       for (const diagnostic of recovery.diagnostics) {
         diagnosticLogger.write(
           diagnostic.code === "recovery.clean_start" ? "info" : "warning",
@@ -798,7 +815,12 @@ app.whenReady().then(() => {
       initialState,
       publishActivityEvent,
     );
-    persistenceSession.saveCommand(initialState, now, startupEvent);
+    persistenceSession.saveCommand(
+      initialState,
+      now,
+      startupEvents,
+      startupMemories,
+    );
     petController = new PetController(
       initialState,
       (state, committedAt, events, memories) => {

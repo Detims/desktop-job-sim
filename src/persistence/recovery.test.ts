@@ -96,7 +96,7 @@ describe("pet-state recovery", () => {
     );
 
     expect(recovered.state.activity).toBeNull();
-    expect(recovered.state.wallet).toBeCloseTo(
+    expect(recovered.state.household.wallet).toBeCloseTo(
       PROTOTYPE_JOB.rewardCoins / 3,
     );
     expect(recovered.state.mastery).toBeCloseTo(

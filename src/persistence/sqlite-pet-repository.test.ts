@@ -135,7 +135,7 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(5);
+    expect(version.user_version).toBe(6);
     migrated.close();
   });
 
@@ -246,7 +246,7 @@ describe("SqlitePetRepository", () => {
           cleanExit: false,
           position: { x: 0, y: 0 },
           savedAt: 2_000,
-          state: { ...initial, wallet: 99 },
+          state: { ...initial, household: { ...initial.household, wallet: 99 } },
         },
         [{
           details: {},
@@ -261,7 +261,7 @@ describe("SqlitePetRepository", () => {
       ),
     ).toThrowError(expect.objectContaining({ eventCode: "database.save_failed" }));
 
-    expect(repository.load()?.state.wallet).toBe(0);
+    expect(repository.load()?.state.household.wallet).toBe(0);
     expect(repository.loadActivityPage(undefined, 10).events).toEqual([]);
     expect(repository.loadMemoryPage(undefined, 10).memories).toEqual([memory]);
     repository.close();

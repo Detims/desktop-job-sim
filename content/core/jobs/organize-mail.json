@@ -7,5 +7,6 @@
   "needCosts": { "energy": 6, "hunger": 1, "mood": 1, "thirst": 2 },
   "requiredRankId": "core:clerk:junior",
   "rewardCareerXp": 10,
-  "rewardCoins": 10
+  "rewardCoins": 10,
+  "stressCost": 3
 }

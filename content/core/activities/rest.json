@@ -2,5 +2,6 @@
   "id": "core:basic-rest",
   "name": "Rest",
   "durationMs": 15000,
-  "recoveryEnergy": 15
+  "recoveryEnergy": 15,
+  "stressRecovery": 8
 }

@@ -37,7 +37,7 @@ import type { SettingsActivityRepository } from "./settings-activity-repository.
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -713,6 +713,11 @@ export class SqlitePetRepository
           CREATE INDEX life_memory_chronology
             ON life_memory (occurred_at DESC, memory_id DESC);
         `);
+      }
+      if (fromVersion < 6) {
+        // Household, inventory, and care state remain schema-controlled JSON
+        // inside pet_runtime. The version bump creates a verified backup before
+        // legacy wallet state is normalized into the household object.
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

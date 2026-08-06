@@ -5,6 +5,45 @@ export interface NeedState {
   thirst: number;
 }
 
+export type InventoryState = Readonly<Record<string, number>>;
+
+export interface HouseholdState {
+  inventory: InventoryState;
+  wallet: number;
+}
+
+export interface CriticalExposureState {
+  energy: number;
+  hunger: number;
+  thirst: number;
+}
+
+export interface SeriousIllnessState {
+  medicineUsed: boolean;
+  recoverAt: number;
+  startedAt: number;
+}
+
+export interface CareState {
+  comfortCooldownUntil: number;
+  criticalExposureMs: CriticalExposureState;
+  health: number;
+  hygiene: number;
+  recoveryProtectedUntil: number;
+  seriousIllness: SeriousIllnessState | null;
+  stress: number;
+}
+
+export type CareItemAction = "clean" | "drink" | "feed" | "medicine";
+
+export interface CareItemDefinition {
+  action: CareItemAction;
+  id: string;
+  name: string;
+  price: number;
+  restoreAmount: number;
+}
+
 export type ActivityType = "careerJob" | "job" | "rest" | "study";
 
 export interface ActivityBonuses {
@@ -46,7 +85,8 @@ export type Presentation =
   | "dragged"
   | "resting"
   | "studying"
-  | "working";
+  | "working"
+  | "ill";
 
 interface ActiveActivityBase {
   accumulatedMs: number;
@@ -89,9 +129,11 @@ export type ActiveActivity =
 
 export interface PetState {
   activity: ActiveActivity | null;
+  care: CareState;
   careers: CareerState;
   conditions: ConditionState;
   examCooldowns: ExamCooldownState;
+  household: HouseholdState;
   knowledge: KnowledgeState;
   mastery: number;
   needs: NeedState;
@@ -103,7 +145,6 @@ export interface PetState {
   stateVersion: number;
   statusText: string;
   updatedAt: number;
-  wallet: number;
 }
 
 export type PetMutableState = Partial<
@@ -122,14 +163,17 @@ export interface PetPatch {
 
 export type PetCommand =
   | { type: "cancelActivity" }
+  | { type: "comfort" }
   | { careerId: string; type: "enrollCareer" }
   | { examId: string; type: "attemptExam" }
   | { type: "pet" }
+  | { itemId: string; type: "purchaseItem" }
   | { careerId: string; type: "promoteCareer" }
   | { jobId: string; type: "startCareerJob" }
   | { type: "startJob" }
   | { type: "startRest" }
   | { studyId?: string | undefined; type: "startStudy" }
+  | { itemId: string; type: "useItem" }
   | { type: "walk" };
 
 export interface WindowPoint {
@@ -152,6 +196,7 @@ export interface JobDefinition {
   needCosts: NeedState;
   rewardCoins: number;
   rewardMastery: number;
+  stressCost: number;
 }
 
 export interface CareerRankDefinition {
@@ -183,6 +228,7 @@ export interface CareerJobDefinition {
   requiredRankId: string;
   rewardCareerXp: number;
   rewardCoins: number;
+  stressCost: number;
 }
 
 export interface StudyDefinition {
@@ -192,6 +238,7 @@ export interface StudyDefinition {
   name: string;
   needCosts: NeedState;
   rewardKnowledge: number;
+  stressCost: number;
 }
 
 export interface ExamDefinition {
@@ -223,6 +270,7 @@ export interface RestDefinition {
   id: string;
   name: string;
   recoveryEnergy: number;
+  stressRecovery: number;
 }
 
 export type ManagementTab = "work" | "careers" | "memories";

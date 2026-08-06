@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const MemoryCategorySchema = z.enum(["career", "qualification"]);
+export const MemoryCategorySchema = z.enum(["career", "illness", "qualification"]);
 export const MemoryEntrySchema = z.object({
   category: MemoryCategorySchema,
   description: z.string().min(1),

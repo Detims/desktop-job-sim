@@ -162,7 +162,7 @@ function renderState(state: PetState): void {
   renderNeed("thirst", state.needs.thirst);
   renderNeed("mood", state.needs.mood);
   renderNeed("energy", state.needs.energy);
-  walletText.textContent = `${state.wallet.toFixed(1)}c`;
+  walletText.textContent = `${state.household.wallet.toFixed(1)}c`;
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
   knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;

@@ -1,0 +1,7 @@
+{
+  "id": "core:soap",
+  "name": "Soap",
+  "price": 4,
+  "action": "clean",
+  "restoreAmount": 100
+}

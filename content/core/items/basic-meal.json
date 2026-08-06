@@ -1,0 +1,7 @@
+{
+  "id": "core:basic-meal",
+  "name": "Basic Meal",
+  "price": 5,
+  "action": "feed",
+  "restoreAmount": 25
+}
