@@ -175,6 +175,16 @@ function publishSettings(settings: AppSettings): void {
 }
 
 function registerPetIpc(): void {
+  ipcMain.on(IPC_CHANNELS.exitApplication, (event) => {
+    if (
+      managementWindow === null ||
+      event.sender !== managementWindow.webContents
+    ) {
+      return;
+    }
+    app.quit();
+  });
+
   ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
     if (!isPetSender(event) && !isHomeSender(event)) {
       throw new Error("Unauthorized settings request.");

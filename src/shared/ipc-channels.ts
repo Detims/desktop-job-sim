@@ -3,6 +3,7 @@ export const IPC_CHANNELS = Object.freeze({
   command: "pet:command",
   drag: "pet-window:drag",
   endDrag: "pet-window:end-drag",
+  exitApplication: "app:exit",
   getSnapshot: "pet:get-snapshot",
   getSettings: "settings:get",
   getActivityPage: "activity:get-page",

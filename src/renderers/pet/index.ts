@@ -45,9 +45,7 @@ const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
 const masteryText = requiredElement<HTMLElement>("#mastery");
 const knowledgeText = requiredElement<HTMLElement>("#knowledge");
-const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
 const homeButton = requiredElement<HTMLButtonElement>("#home-button");
-const restButton = requiredElement<HTMLButtonElement>("#rest-button");
 const workMenuButton =
   requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>(
@@ -82,7 +80,7 @@ root.appendChild(pixi.canvas);
 
 let petSprite: AnimatedSprite | null = null;
 let currentState: PetState = readSnapshot(await window.desktopPet.getSnapshot());
-await initializePetOverlay(window.desktopPet);
+const petOverlay = await initializePetOverlay(window.desktopPet);
 let resyncInFlight: Promise<void> | null = null;
 
 async function addPetSprite(): Promise<void> {
@@ -150,7 +148,9 @@ function setPresentation(presentation: Presentation): void {
       ? 0xffd6e7
       : presentation === "working"
         ? 0xfff1b8
-        : 0xffffff;
+        : presentation === "ill"
+          ? 0xb7d7c6
+          : 0xffffff;
   petSprite.scale.y =
     presentation === "petted"
       ? Math.abs(petSprite.scale.x) * 0.95
@@ -158,6 +158,7 @@ function setPresentation(presentation: Presentation): void {
 }
 
 function renderState(state: PetState): void {
+  petOverlay.renderState(state);
   renderNeed("hunger", state.needs.hunger);
   renderNeed("thirst", state.needs.thirst);
   renderNeed("mood", state.needs.mood);
@@ -175,8 +176,6 @@ function renderState(state: PetState): void {
   setPresentation(state.presentation);
 
   const hasActivity = state.activity !== null;
-  walkButton.disabled = hasActivity;
-  restButton.disabled = hasActivity || state.needs.energy >= 100;
   workOverlay.hidden = !hasActivity;
 
   if (state.activity !== null) {
@@ -357,12 +356,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-walkButton.addEventListener("click", () => {
-  void dispatch({ type: "walk" });
-});
-restButton.addEventListener("click", () => {
-  void dispatch({ type: "startRest" });
-});
 homeButton.addEventListener("click", () => {
   setStatsOverlayOpen(false);
   void openHome();

@@ -125,7 +125,10 @@ function WorkTab({
             (activity.durationMs - activity.accumulatedMs) / 1000,
           ),
         );
-  const canStart = activity === null && state.needs.energy >= 10;
+  const canStart =
+    activity === null &&
+    state.needs.energy >= 10 &&
+    state.care.seriousIllness === null;
   const moodMultiplier = 0.75 + state.needs.mood / 200;
   const deskMultiplier = 0.05;
   const expectedStudyGain =
@@ -438,6 +441,7 @@ function CareersTab({
   const canAttemptExam =
     !qualified &&
     state.activity === null &&
+    state.care.seriousIllness === null &&
     cooldownSeconds === 0 &&
     businessKnowledge >= administrativeExam.riskMinimumKnowledge &&
     state.needs.energy >= administrativeExam.minimumEnergy &&
@@ -669,7 +673,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
 function App() {
   const [activeTab, setActiveTab] = useState<ManagementTab>("work");
   const { dispatch, error, state } = usePetState();
-  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}`;
+  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}:${state?.care.recoveryProtectedUntil ?? 0}`;
 
   useEffect(
     () => window.desktopManagement.onTabRequested(setActiveTab),
@@ -691,9 +695,18 @@ function App() {
           <p className="eyebrow">Desktop Pet</p>
           <h1>Work &amp; Careers</h1>
         </div>
-        <div className="account-summary">
-          <span>{state.household.wallet.toFixed(1)} coins</span>
-          <span>{state.mastery.toFixed(1)} mastery</span>
+        <div className="header-actions">
+          <div className="account-summary">
+            <span>{state.household.wallet.toFixed(1)} coins</span>
+            <span>{state.mastery.toFixed(1)} mastery</span>
+          </div>
+          <button
+            className="exit-application"
+            onClick={() => window.desktopManagement.exitApplication()}
+            type="button"
+          >
+            Exit Application
+          </button>
         </div>
       </header>
 

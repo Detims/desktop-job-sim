@@ -212,8 +212,10 @@ export class PetController {
                 ...this.state.needs,
                 mood: Math.min(100, this.state.needs.mood + 3),
               },
-              presentation: "petted",
-              presentationUntil: now + 900,
+              presentation:
+                this.state.care.seriousIllness === null ? "petted" : "ill",
+              presentationUntil:
+                this.state.care.seriousIllness === null ? now + 900 : null,
               statusText: "Purr!",
             },
             now,

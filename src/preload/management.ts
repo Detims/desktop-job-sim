@@ -14,6 +14,7 @@ import type {
 
 export interface DesktopManagementBridge {
   dispatch(command: PetCommand): Promise<PetSnapshot>;
+  exitApplication(): void;
   getSnapshot(): Promise<PetSnapshot>;
   getMemoryPage(request?: MemoryPageRequest): Promise<MemoryPage>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
@@ -40,6 +41,9 @@ ipcRenderer.on(
 const bridge: DesktopManagementBridge = Object.freeze({
   dispatch(command: PetCommand) {
     return ipcRenderer.invoke(IPC_CHANNELS.command, command);
+  },
+  exitApplication() {
+    ipcRenderer.send(IPC_CHANNELS.exitApplication);
   },
   getSnapshot() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSnapshot);
