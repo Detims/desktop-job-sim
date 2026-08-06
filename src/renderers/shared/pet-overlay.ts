@@ -7,15 +7,29 @@ import type {
   MeaningfulEvent,
   UpdateSettingsCommand,
 } from "../../shared/settings-activity-types.js";
+import type { PetCommand, PetSnapshot, PetState } from "../../shared/pet-types.js";
+import { CARE_ITEMS } from "../../domain/care-items.js";
+import { hygieneBand, stressBand } from "../../domain/care.js";
 
-type OverlayTab = "activity" | "settings" | "status";
+type OverlayTab =
+  | "activity"
+  | "interact"
+  | "inventory"
+  | "settings"
+  | "shop"
+  | "status";
 
 export interface PetOverlayBridge {
+  dispatch(command: PetCommand): Promise<PetSnapshot>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
   getSettings(): Promise<AppSettings>;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void;
   updateSettings(command: UpdateSettingsCommand): Promise<AppSettings>;
+}
+
+export interface PetOverlayController {
+  renderState(state: PetState): void;
 }
 
 const CARE_LEVELS: readonly CareIntensity[] = [
@@ -41,7 +55,8 @@ function errorMessage(error: unknown): string {
 
 export async function initializePetOverlay(
   bridge: PetOverlayBridge,
-): Promise<void> {
+  options: { walkEnabled?: boolean } = {},
+): Promise<PetOverlayController> {
   const tabButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-overlay-tab]"),
   );
@@ -57,6 +72,24 @@ export async function initializePetOverlay(
   const activityEmpty = requiredElement<HTMLElement>("#activity-empty");
   const activityError = requiredElement<HTMLOutputElement>("#activity-error");
   const loadOlder = requiredElement<HTMLButtonElement>("#load-older-activity");
+  const careError = requiredElement<HTMLOutputElement>("#care-error");
+  const shopWallet = requiredElement<HTMLElement>("#shop-wallet");
+  const health = requiredElement<HTMLProgressElement>("#health");
+  const hygieneStatus = requiredElement<HTMLElement>("#hygiene-status");
+  const stressStatus = requiredElement<HTMLElement>("#stress-status");
+  const illnessStatus = requiredElement<HTMLElement>("#illness-status");
+  const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
+  const restButton = requiredElement<HTMLButtonElement>("#rest-button");
+  const comfortButton = requiredElement<HTMLButtonElement>("#comfort-button");
+  const purchaseButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("[data-purchase-item]"),
+  );
+  const useButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("[data-use-item]"),
+  );
+  const quantities = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-item-quantity]"),
+  );
 
   let selectedTab: OverlayTab = "status";
   let settings = await bridge.getSettings();
@@ -64,6 +97,65 @@ export async function initializePetOverlay(
   let loadingActivity = false;
   let nextCursor: ActivityPage["nextCursor"] | undefined;
   const events = new Map<string, MeaningfulEvent>();
+  function renderCareState(state: PetState): void {
+    health.value = state.care.health;
+    hygieneStatus.textContent = hygieneBand(state.care.hygiene);
+    stressStatus.textContent = stressBand(state.care.stress);
+    const illness = state.care.seriousIllness;
+    illnessStatus.hidden = illness === null;
+    illnessStatus.textContent =
+      illness === null
+        ? ""
+        : `Serious Illness · ${Math.max(0, Math.ceil((illness.recoverAt - Date.now()) / 1_000))}s`;
+    shopWallet.textContent = `${state.household.wallet.toFixed(1)} coins`;
+    walkButton.disabled =
+      options.walkEnabled === false ||
+      state.activity !== null ||
+      state.care.seriousIllness !== null;
+    restButton.disabled =
+      state.activity !== null ||
+      state.care.seriousIllness !== null ||
+      state.needs.energy >= 100;
+    comfortButton.disabled = Date.now() < state.care.comfortCooldownUntil;
+    for (const element of quantities) {
+      const itemId = element.dataset.itemQuantity ?? "";
+      element.textContent = String(state.household.inventory[itemId] ?? 0);
+    }
+    for (const button of purchaseButtons) {
+      const item = CARE_ITEMS.find(
+        (candidate) => candidate.id === button.dataset.purchaseItem,
+      );
+      button.disabled = item === undefined || state.household.wallet < item.price;
+    }
+    for (const button of useButtons) {
+      const item = CARE_ITEMS.find(
+        (candidate) => candidate.id === button.dataset.useItem,
+      );
+      const quantity = item === undefined ? 0 : state.household.inventory[item.id] ?? 0;
+      const targetFull =
+        item?.action === "feed"
+          ? state.needs.hunger >= 100
+          : item?.action === "drink"
+            ? state.needs.thirst >= 100
+            : item?.action === "clean"
+              ? state.care.hygiene >= 100
+              : false;
+      const medicineUnavailable =
+        item?.action === "medicine" &&
+        (state.care.seriousIllness === null || state.care.seriousIllness.medicineUsed);
+      button.disabled = quantity < 1 || targetFull || medicineUnavailable;
+    }
+  }
+
+  async function dispatchCare(command: PetCommand): Promise<void> {
+    careError.value = "";
+    try {
+      const snapshot = await bridge.dispatch(command);
+      renderCareState(snapshot.state);
+    } catch (error: unknown) {
+      careError.value = errorMessage(error);
+    }
+  }
 
   function renderSettings(): void {
     careSlider.value = String(CARE_LEVELS.indexOf(settings.careIntensity));
@@ -194,6 +286,21 @@ export async function initializePetOverlay(
     });
   });
   loadOlder.addEventListener("click", () => void loadActivity());
+  walkButton.addEventListener("click", () => void dispatchCare({ type: "walk" }));
+  restButton.addEventListener("click", () => void dispatchCare({ type: "startRest" }));
+  comfortButton.addEventListener("click", () => void dispatchCare({ type: "comfort" }));
+  for (const button of purchaseButtons) {
+    button.addEventListener("click", () => {
+      const itemId = button.dataset.purchaseItem;
+      if (itemId !== undefined) void dispatchCare({ itemId, type: "purchaseItem" });
+    });
+  }
+  for (const button of useButtons) {
+    button.addEventListener("click", () => {
+      const itemId = button.dataset.useItem;
+      if (itemId !== undefined) void dispatchCare({ itemId, type: "useItem" });
+    });
+  }
 
   bridge.onSettingsChanged((next) => {
     settings = next;
@@ -206,4 +313,9 @@ export async function initializePetOverlay(
 
   renderSettings();
   selectTab(selectedTab);
+  return {
+    renderState(state: PetState) {
+      renderCareState(state);
+    },
+  };
 }

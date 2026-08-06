@@ -1,0 +1,7 @@
+{
+  "id": "core:water",
+  "name": "Water",
+  "price": 3,
+  "action": "drink",
+  "restoreAmount": 30
+}

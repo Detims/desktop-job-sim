@@ -47,6 +47,81 @@ describe("PetController", () => {
     expect(controller.getSnapshot().state.needs.mood).toBe(90);
   });
 
+  it("does not expose a household purchase when its durable commit fails", async () => {
+    const initial = new PetController(1_000).getSnapshot().state;
+    const controller = new PetController(
+      { ...initial, household: { inventory: {}, wallet: 10 } },
+      () => { throw new Error("disk unavailable"); },
+    );
+
+    await expect(
+      controller.dispatch({ itemId: "core:water", type: "purchaseItem" }, 1_100),
+    ).rejects.toThrow("disk unavailable");
+    expect(controller.getSnapshot().state.household).toEqual({
+      inventory: {},
+      wallet: 10,
+    });
+  });
+
+  it("commits care purchases and uses with meaningful events", async () => {
+    const initial = new PetController(1_000).getSnapshot().state;
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...initial,
+        household: { inventory: {}, wallet: 10 },
+        needs: { ...initial.needs, thirst: 60 },
+      },
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+
+    await controller.dispatch({ itemId: "core:water", type: "purchaseItem" }, 1_100);
+    await controller.dispatch({ itemId: "core:water", type: "useItem" }, 1_200);
+
+    expect(controller.getSnapshot().state.household.wallet).toBe(7);
+    expect(controller.getSnapshot().state.needs.thirst).toBe(90);
+    expect(events.map((event) => event.type)).toEqual([
+      "care.item_purchased",
+      "care.item_used",
+    ]);
+  });
+
+  it("commits one permanent Memory when Serious Illness recovers", () => {
+    const initial = new PetController(1_000).getSnapshot().state;
+    const events: MeaningfulEventDraft[] = [];
+    const memories: MemoryEntryDraft[] = [];
+    const controller = new PetController(
+      {
+        ...initial,
+        care: {
+          ...initial.care,
+          health: 12,
+          seriousIllness: {
+            medicineUsed: false,
+            recoverAt: 2_000,
+            startedAt: 1_000,
+          },
+        },
+        presentation: "ill",
+      },
+      (_state, _now, drafts = [], memoryDrafts = []) => {
+        events.push(...drafts);
+        memories.push(...memoryDrafts);
+      },
+    );
+
+    controller.tick(1_000, 2_000);
+    controller.tick(1_000, 3_000);
+
+    expect(events.filter((event) => event.type === "care.recovered")).toHaveLength(1);
+    expect(memories).toEqual([
+      expect.objectContaining({
+        category: "illness",
+        title: "Recovered from Serious Illness",
+      }),
+    ]);
+  });
+
   it("enforces one major activity and applies configured furniture bonuses", async () => {
     const controller = new PetController(
       {

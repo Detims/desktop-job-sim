@@ -20,6 +20,7 @@ export interface RecoveryDiagnostic {
 
 export interface RecoveryResult {
   diagnostics: readonly RecoveryDiagnostic[];
+  illnessRecovered: boolean;
   offlineElapsedMs: number;
   state: PetState;
 }
@@ -73,5 +74,12 @@ export function recoverPetState(
     diagnostics.push({ code: "recovery.clean_start" });
   }
 
-  return { diagnostics, offlineElapsedMs, state };
+  return {
+    diagnostics,
+    illnessRecovered:
+      persistedState.care.seriousIllness !== null &&
+      state.care.seriousIllness === null,
+    offlineElapsedMs,
+    state,
+  };
 }

@@ -85,7 +85,9 @@ const [petSnapshot, layoutSnapshot] = await Promise.all([
   window.desktopHome.getLayout(),
 ]);
 let currentState: PetState = readSnapshot(petSnapshot);
-await initializePetOverlay(window.desktopHome);
+const petOverlay = await initializePetOverlay(window.desktopHome, {
+  walkEnabled: false,
+});
 let savedLayout = cloneLayout(layoutSnapshot.layout);
 let draftLayout = cloneLayout(layoutSnapshot.layout);
 let resyncInFlight: Promise<void> | null = null;
@@ -203,10 +205,11 @@ pixi.stage.addChild(petVisual);
 renderFurniture();
 
 function renderState(state: PetState): void {
+  petOverlay.renderState(state);
   for (const name of Object.keys(needElements) as (keyof NeedState)[]) {
     needElements[name].value = state.needs[name];
   }
-  walletText.textContent = `${state.wallet.toFixed(1)}c`;
+  walletText.textContent = `${state.household.wallet.toFixed(1)}c`;
   masteryText.textContent = `${state.mastery.toFixed(1)}★`;
   knowledgeText.textContent = `${(state.knowledge["core:general"] ?? 0).toFixed(1)}K`;
   statusText.value = state.statusText;
@@ -216,7 +219,13 @@ function renderState(state: PetState): void {
     discouraged === undefined
       ? ""
       : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
-  petVisual.tint = state.presentation === "petted" ? 0xffd6e7 : state.presentation === "working" ? 0xfff1b8 : 0xffffff;
+  petVisual.tint = state.presentation === "petted"
+    ? 0xffd6e7
+    : state.presentation === "working"
+      ? 0xfff1b8
+      : state.presentation === "ill"
+        ? 0xb7d7c6
+        : 0xffffff;
 
   workOverlay.hidden = state.activity === null;
   if (state.activity !== null) {

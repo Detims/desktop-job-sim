@@ -4,5 +4,6 @@
   "knowledgeFieldId": "core:business-administration",
   "name": "Business Fundamentals",
   "needCosts": { "energy": 5, "hunger": 0, "mood": 2, "thirst": 0 },
-  "rewardKnowledge": 10
+  "rewardKnowledge": 10,
+  "stressCost": 3
 }

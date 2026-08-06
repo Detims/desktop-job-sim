@@ -26,6 +26,10 @@ import {
   reconcileTimedState,
 } from "../domain/exam.js";
 import { getStudyDefinition } from "../domain/study.js";
+import {
+  applyCareElapsed,
+  assertSafeForMajorActivity,
+} from "../domain/care.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
@@ -89,9 +93,19 @@ export function activityDisplayName(activity: ActiveActivity): string {
 export function createInitialPetState(now: number): PetState {
   return {
     activity: null,
+    care: {
+      comfortCooldownUntil: 0,
+      criticalExposureMs: { energy: 0, hunger: 0, thirst: 0 },
+      health: 100,
+      hygiene: 100,
+      recoveryProtectedUntil: 0,
+      seriousIllness: null,
+      stress: 0,
+    },
     careers: {},
     conditions: {},
     examCooldowns: {},
+    household: { inventory: {}, wallet: 0 },
     knowledge: { "core:general": 0 },
     mastery: 0,
     needs: {
@@ -108,7 +122,6 @@ export function createInitialPetState(now: number): PetState {
     stateVersion: 0,
     statusText: "Ready to play.",
     updatedAt: now,
-    wallet: 0,
   };
 }
 
@@ -117,6 +130,7 @@ export function startCareerJob(
   now: number,
   jobId: string,
 ): PetState {
+  assertSafeForMajorActivity(state);
   const definition = getCareerJobDefinition(jobId);
   if (state.activity !== null) return state;
   if (!isCareerJobUnlocked(state, definition)) {
@@ -148,6 +162,7 @@ export function startPrototypeJob(
   now: number,
   definition: JobDefinition = PROTOTYPE_JOB,
 ): PetState {
+  assertSafeForMajorActivity(state);
   if (state.activity !== null) return state;
 
   if (state.needs.energy < 10) {
@@ -177,6 +192,7 @@ export function startPrototypeStudy(
   bonuses: ActivityBonuses,
   definition: StudyDefinition = PROTOTYPE_STUDY,
 ): PetState {
+  assertSafeForMajorActivity(state);
   if (state.activity !== null) return state;
   if (state.needs.energy < 10) {
     return { ...state, statusText: "Too tired to study." };
@@ -217,6 +233,7 @@ export function startPrototypeRest(
   bonuses: ActivityBonuses,
   definition: RestDefinition = PROTOTYPE_REST,
 ): PetState {
+  assertSafeForMajorActivity(state);
   if (state.activity !== null) return state;
   if (state.needs.energy >= 100) {
     return { ...state, statusText: "Already fully rested." };
@@ -262,17 +279,18 @@ export function applyOfflineNeedDecay(
     Math.max(0, elapsedMs),
   );
 
-  return {
+  const needs = applyNeedDelta(
+    state.needs,
+    NEED_DECAY_PER_HOUR,
+    (boundedElapsedMs / HOUR_MS) * rate,
+  );
+  return applyCareElapsed({
     ...state,
-    needs: applyNeedDelta(
-      state.needs,
-      NEED_DECAY_PER_HOUR,
-      (boundedElapsedMs / HOUR_MS) * rate,
-    ),
+    needs,
     presentation: presentationForActivity(state.activity),
     presentationUntil: null,
     updatedAt: now,
-  };
+  }, needs, boundedElapsedMs, now, rate);
 }
 
 function advanceRest(
@@ -314,7 +332,7 @@ function advanceRest(
     energy: clampNeed(needsAfterDecay.energy + grossRecovery),
   };
 
-  return {
+  const next = {
     ...state,
     activity: completed
       ? null
@@ -333,6 +351,14 @@ function advanceRest(
       : state.statusText,
     updatedAt: now,
   };
+  return applyCareElapsed(
+    next,
+    needs,
+    elapsedMs,
+    now,
+    passiveNeedMultiplier,
+    -definition.stressRecovery * (activeElapsedMs / activity.durationMs),
+  );
 }
 
 export function advancePetState(
@@ -365,7 +391,8 @@ export function advancePetState(
   let careers = state.careers;
   let knowledge = state.knowledge;
   let mastery = state.mastery;
-  let wallet = state.wallet;
+  let wallet = state.household.wallet;
+  let stressDelta = 0;
   let presentation = state.presentation;
   let presentationUntil = state.presentationUntil;
   let statusText = state.statusText;
@@ -394,6 +421,7 @@ export function advancePetState(
         activeElapsedMs / activity.durationMs,
       );
       wallet += targetCoins - activity.creditedCoins;
+      stressDelta += jobDefinition.stressCost * (activeElapsedMs / activity.durationMs);
       mastery += targetMastery - activity.creditedMastery;
       if (nextAccumulatedMs >= activity.durationMs) {
         mastery += jobDefinition.completionMasteryBonus;
@@ -421,6 +449,7 @@ export function advancePetState(
         activeElapsedMs / activity.durationMs,
       );
       wallet += targetCoins - activity.creditedCoins;
+      stressDelta += definition.stressCost * (activeElapsedMs / activity.durationMs);
       careers = {
         ...careers,
         [activity.careerId]: {
@@ -468,6 +497,7 @@ export function advancePetState(
           targetKnowledge -
           activity.creditedKnowledge,
       };
+      stressDelta += resolvedStudyDefinition.stressCost * (activeElapsedMs / activity.durationMs);
       if (nextAccumulatedMs >= activity.durationMs) {
         activity = null;
         statusText = `Completed ${resolvedStudyDefinition.name}.`;
@@ -488,10 +518,11 @@ export function advancePetState(
     }
   }
 
-  return reconcileCareerProgression({
+  const next = applyCareElapsed({
     ...state,
     activity,
     careers,
+    household: { ...state.household, wallet },
     knowledge,
     mastery,
     needs,
@@ -499,6 +530,6 @@ export function advancePetState(
     presentationUntil,
     statusText,
     updatedAt: now,
-    wallet,
-  }, now);
+  }, needs, safeElapsedMs, now, passiveNeedMultiplier, stressDelta);
+  return reconcileCareerProgression(next, now);
 }

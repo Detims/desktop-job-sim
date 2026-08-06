@@ -1,0 +1,7 @@
+{
+  "id": "core:medicine",
+  "name": "Medicine",
+  "price": 20,
+  "action": "medicine",
+  "restoreAmount": 0
+}

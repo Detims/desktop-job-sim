@@ -125,7 +125,10 @@ function WorkTab({
             (activity.durationMs - activity.accumulatedMs) / 1000,
           ),
         );
-  const canStart = activity === null && state.needs.energy >= 10;
+  const canStart =
+    activity === null &&
+    state.needs.energy >= 10 &&
+    state.care.seriousIllness === null;
   const moodMultiplier = 0.75 + state.needs.mood / 200;
   const deskMultiplier = 0.05;
   const expectedStudyGain =
@@ -145,7 +148,11 @@ function WorkTab({
           <h2>Work &amp; Study</h2>
         </div>
         <span className={activity === null ? "status idle" : "status active"}>
-          {activity === null ? "Available" : activityLabel(activity)}
+          {state.care.seriousIllness !== null
+            ? "Unavailable · Ill"
+            : activity === null
+              ? "Available"
+              : activityLabel(activity)}
         </span>
       </header>
 
@@ -153,6 +160,11 @@ function WorkTab({
         Choose one major activity at a time. Progress is earned continuously,
         and cancellation keeps the amount already earned.
       </p>
+      {state.care.seriousIllness !== null && (
+        <aside className="condition-note">
+          Serious Illness blocks work, study, exams, walking, and rest until recovery.
+        </aside>
+      )}
 
       {activity !== null && (
         <div className="activity-card">
@@ -162,7 +174,7 @@ function WorkTab({
           </div>
           <progress value={progress} max="100" />
           <div className="activity-line earnings">
-            <span>{state.wallet.toFixed(1)} coins</span>
+            <span>{state.household.wallet.toFixed(1)} coins</span>
             <span>{state.mastery.toFixed(1)} mastery</span>
             {clerk !== undefined && (
               <span>{clerk.mastery.toFixed(1)} Clerk XP</span>
@@ -438,6 +450,7 @@ function CareersTab({
   const canAttemptExam =
     !qualified &&
     state.activity === null &&
+    state.care.seriousIllness === null &&
     cooldownSeconds === 0 &&
     businessKnowledge >= administrativeExam.riskMinimumKnowledge &&
     state.needs.energy >= administrativeExam.minimumEnergy &&
@@ -634,7 +647,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
         <span className="status idle">Permanent</span>
       </header>
       <p className="description">
-        Qualifications and major career milestones live here independently of Activity retention.
+        Qualifications, recoveries, and major career milestones live here independently of Activity retention.
       </p>
       {error !== null && <div className="error-banner">{error}</div>}
       {memories.length === 0 && !loading ? (
@@ -669,7 +682,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
 function App() {
   const [activeTab, setActiveTab] = useState<ManagementTab>("work");
   const { dispatch, error, state } = usePetState();
-  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}`;
+  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}:${state?.care.recoveryProtectedUntil ?? 0}`;
 
   useEffect(
     () => window.desktopManagement.onTabRequested(setActiveTab),
@@ -691,9 +704,18 @@ function App() {
           <p className="eyebrow">Desktop Pet</p>
           <h1>Work &amp; Careers</h1>
         </div>
-        <div className="account-summary">
-          <span>{state.wallet.toFixed(1)} coins</span>
-          <span>{state.mastery.toFixed(1)} mastery</span>
+        <div className="header-actions">
+          <div className="account-summary">
+            <span>{state.household.wallet.toFixed(1)} coins</span>
+            <span>{state.mastery.toFixed(1)} mastery</span>
+          </div>
+          <button
+            className="exit-application"
+            onClick={() => window.desktopManagement.exitApplication()}
+            type="button"
+          >
+            Exit Application
+          </button>
         </div>
       </header>
 

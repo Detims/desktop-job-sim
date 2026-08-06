@@ -4,6 +4,7 @@ const FALLBACKS: Readonly<Record<Presentation, readonly string[]>> =
   Object.freeze({
     dragged: ["dragged", "idle"],
     idle: ["idle"],
+    ill: ["ill", "idle"],
     petted: ["petted", "idle"],
     resting: ["resting", "idle"],
     studying: ["studying", "working", "idle"],

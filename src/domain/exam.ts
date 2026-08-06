@@ -4,6 +4,7 @@ import {
   type ExamDefinition,
   type PetState,
 } from "../shared/contracts.js";
+import { assertSafeForMajorActivity } from "./care.js";
 
 export const ADMINISTRATIVE_ASSISTANT_EXAM =
   ExamDefinitionSchema.parse(rawAdministrativeExam);
@@ -74,6 +75,7 @@ export function attemptExam(
   now: number,
 ): ExamResolution {
   const state = reconcileTimedState(rawState, now);
+  assertSafeForMajorActivity(state);
   const definition = getExamDefinition(examId);
   const knowledge = state.knowledge[definition.knowledgeFieldId] ?? 0;
   if (state.activity !== null) {
@@ -94,7 +96,7 @@ export function attemptExam(
   if (state.needs.mood < definition.minimumMood) {
     throw new ExamRuleError("exam.mood", `Requires ${definition.minimumMood} mood.`);
   }
-  if (state.wallet < definition.coinCost) {
+  if (state.household.wallet < definition.coinCost) {
     throw new ExamRuleError("exam.coins", `Requires ${definition.coinCost} coins.`);
   }
 
@@ -110,7 +112,10 @@ export function attemptExam(
     },
     randomSeed: random?.nextSeed ?? state.randomSeed,
     updatedAt: now,
-    wallet: state.wallet - definition.coinCost,
+    household: {
+      ...state.household,
+      wallet: state.household.wallet - definition.coinCost,
+    },
   };
 
   if (passed) {

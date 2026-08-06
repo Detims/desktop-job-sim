@@ -9,14 +9,14 @@ describe("renderer pet store", () => {
     const next = applyPatch(state, {
       baseVersion: 0,
       changes: {
+        household: { inventory: {}, wallet: 4 },
         statusText: "Patched",
-        wallet: 4,
       },
       nextVersion: 1,
     });
 
     expect(next?.statusText).toBe("Patched");
-    expect(next?.wallet).toBe(4);
+    expect(next?.household.wallet).toBe(4);
     expect(next?.stateVersion).toBe(1);
   });
 
@@ -25,7 +25,7 @@ describe("renderer pet store", () => {
     expect(
       applyPatch(state, {
         baseVersion: 9,
-        changes: { wallet: 99 },
+        changes: { household: { inventory: {}, wallet: 99 } },
         nextVersion: 10,
       }),
     ).toBeNull();

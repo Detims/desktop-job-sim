@@ -43,6 +43,8 @@ describe("pet-state recovery", () => {
     expect(demanding.state.needs.hunger).toBeCloseTo(
       initial.needs.hunger - 1.5,
     );
+    expect(sandbox.state.care.hygiene).toBe(100);
+    expect(demanding.state.care.hygiene).toBeCloseTo(99.25);
   });
 
   it("applies at most eight hours of offline decay at half rate", () => {
@@ -77,6 +79,30 @@ describe("pet-state recovery", () => {
     );
   });
 
+  it("settles illness recovery once while the application is closed", () => {
+    const initial = createInitialPetState(0);
+    const persisted = {
+      ...initial,
+      care: {
+        ...initial.care,
+        health: 12,
+        seriousIllness: {
+          medicineUsed: false,
+          recoverAt: 60_000,
+          startedAt: 0,
+        },
+      },
+      presentation: "ill" as const,
+    };
+
+    const recovered = recoverPetState(persisted, 0, 120_000, true);
+
+    expect(recovered.illnessRecovered).toBe(true);
+    expect(recovered.state.care.seriousIllness).toBeNull();
+    expect(recovered.state.care.health).toBeGreaterThanOrEqual(40);
+    expect(recoverPetState(recovered.state, 120_000, 121_000, true).illnessRecovered).toBe(false);
+  });
+
   it("cancels a crashed job at its checkpoint without adding rewards", () => {
     const startedAt = 1_000;
     const working = startPrototypeJob(
@@ -96,7 +122,7 @@ describe("pet-state recovery", () => {
     );
 
     expect(recovered.state.activity).toBeNull();
-    expect(recovered.state.wallet).toBeCloseTo(
+    expect(recovered.state.household.wallet).toBeCloseTo(
       PROTOTYPE_JOB.rewardCoins / 3,
     );
     expect(recovered.state.mastery).toBeCloseTo(

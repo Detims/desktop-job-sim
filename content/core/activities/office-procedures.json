@@ -4,5 +4,6 @@
   "knowledgeFieldId": "core:business-administration",
   "name": "Office Procedures",
   "needCosts": { "energy": 7, "hunger": 0, "mood": 3, "thirst": 0 },
-  "rewardKnowledge": 15
+  "rewardKnowledge": 15,
+  "stressCost": 4
 }
