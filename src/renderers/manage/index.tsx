@@ -647,7 +647,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
         <span className="status idle">Permanent</span>
       </header>
       <p className="description">
-        Qualifications, recoveries, and major career milestones live here independently of Activity retention.
+        Qualifications, recoveries, relationship milestones, and major career events live here independently of Activity retention.
       </p>
       {error !== null && <div className="error-banner">{error}</div>}
       {memories.length === 0 && !loading ? (
