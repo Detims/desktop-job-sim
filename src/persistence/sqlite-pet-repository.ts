@@ -37,7 +37,7 @@ import type { SettingsActivityRepository } from "./settings-activity-repository.
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -718,6 +718,11 @@ export class SqlitePetRepository
         // Household, inventory, and care state remain schema-controlled JSON
         // inside pet_runtime. The version bump creates a verified backup before
         // legacy wallet state is normalized into the household object.
+      }
+      if (fromVersion < 7) {
+        // Relationship state remains schema-controlled JSON inside pet_runtime.
+        // The version bump guarantees a verified backup before legacy saves
+        // receive Affection, Bond, cooldown, cap, and milestone defaults.
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

@@ -53,6 +53,24 @@ function relationshipMilestoneMemory(
   };
 }
 
+function relationshipMilestoneEvent(
+  prior: PetState,
+  next: PetState,
+): MeaningfulEventDraft | undefined {
+  if (
+    prior.relationship.growingCloserRecorded ||
+    !next.relationship.growingCloserRecorded
+  ) {
+    return undefined;
+  }
+  return {
+    details: { bond: next.relationship.bond },
+    petId: next.petId,
+    summary: "Reached the Growing Closer Bond milestone.",
+    type: "relationship.milestone",
+  };
+}
+
 type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (
   state: PetState,
@@ -115,6 +133,7 @@ export class PetController {
     const illnessRecovered =
       priorIllness !== null && next.care.seriousIllness === null;
     const relationshipMemory = relationshipMilestoneMemory(priorState, next);
+    const relationshipEvent = relationshipMilestoneEvent(priorState, next);
     if (priorActivity !== null && next.activity === null) {
       events.unshift({
             details: {
@@ -144,6 +163,7 @@ export class PetController {
         type: "care.recovered",
       });
     }
+    if (relationshipEvent !== undefined) events.push(relationshipEvent);
     this.commit(
       next,
       events.length > 0 ? now : undefined,
@@ -169,12 +189,13 @@ export class PetController {
         case "comfort": {
           const next = comfortPet(this.state, now);
           const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
             details: { mood: next.needs.mood, stress: next.care.stress },
             petId: next.petId,
             summary: "Comforted the pet.",
             type: "relationship.comforted",
-          }], memory === undefined ? undefined : [memory]);
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
           break;
         }
         case "attemptExam": {
@@ -244,6 +265,7 @@ export class PetController {
             statusText: "Purr!",
           };
           const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(
             next,
             now,
@@ -252,7 +274,7 @@ export class PetController {
               petId: next.petId,
               summary: "Petted the pet.",
               type: "relationship.petted",
-            }],
+            }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])],
             memory === undefined ? undefined : [memory],
           );
           break;
@@ -325,23 +347,25 @@ export class PetController {
           const item = getCareItem(command.itemId);
           const next = useCareItem(this.state, command.itemId, now);
           const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
             details: { itemId: item.id },
             petId: next.petId,
             summary: item.action === "gift" ? `Gave ${item.name}.` : `Used ${item.name}.`,
             type: item.action === "gift" ? "relationship.gifted" : "care.item_used",
-          }], memory === undefined ? undefined : [memory]);
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
           break;
         }
         case "talk": {
           const next = talkToPet(this.state, now);
           const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
             details: { affection: next.relationship.affection, bond: next.relationship.bond },
             petId: next.petId,
             summary: "Talked with the pet.",
             type: "relationship.talked",
-          }], memory === undefined ? undefined : [memory]);
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
           break;
         }
         case "promoteCareer": {

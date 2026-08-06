@@ -219,7 +219,7 @@ function renderState(state: PetState): void {
     discouraged === undefined
       ? ""
       : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
-  petVisual.tint = state.presentation === "petted"
+  petVisual.tint = state.presentation === "petted" || state.presentation === "playing"
     ? 0xffd6e7
     : state.presentation === "working"
       ? 0xfff1b8

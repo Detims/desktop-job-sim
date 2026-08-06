@@ -122,6 +122,45 @@ describe("PetController", () => {
     ]);
   });
 
+  it("commits Growing Closer exactly once with the relationship state", async () => {
+    const initial = new PetController(1_000).getSnapshot().state;
+    const memories: MemoryEntryDraft[] = [];
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...initial,
+        relationship: { ...initial.relationship, bond: 9.5 },
+      },
+      (_state, _now, drafts = [], memoryDrafts = []) => {
+        events.push(...drafts);
+        memories.push(...memoryDrafts);
+      },
+    );
+
+    await controller.dispatch({ type: "comfort" }, 2_000);
+    await controller.dispatch({ type: "comfort" }, 62_000);
+
+    expect(controller.getSnapshot().state.relationship).toMatchObject({
+      bond: 10.5,
+      growingCloserRecorded: true,
+    });
+    expect(memories).toEqual([
+      expect.objectContaining({ category: "relationship", title: "Growing Closer" }),
+    ]);
+    expect(events.filter(({ type }) => type === "relationship.comforted")).toHaveLength(2);
+  });
+
+  it("settles proportional Play progress on interruption", async () => {
+    const controller = new PetController(1_000);
+    await controller.dispatch({ type: "startPlay" }, 2_000);
+
+    const settled = controller.settleForInterruption(15_000, 17_000).state;
+
+    expect(settled.activity).toBeNull();
+    expect(settled.relationship.affection).toBeGreaterThan(53.9);
+    expect(settled.relationship.bond).toBeCloseTo(0.5);
+  });
+
   it("enforces one major activity and applies configured furniture bonuses", async () => {
     const controller = new PetController(
       {

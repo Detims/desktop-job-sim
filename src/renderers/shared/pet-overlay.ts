@@ -10,6 +10,8 @@ import type {
 import type { PetCommand, PetSnapshot, PetState } from "../../shared/pet-types.js";
 import { CARE_ITEMS } from "../../domain/care-items.js";
 import { hygieneBand, stressBand } from "../../domain/care.js";
+import { DAILY_BOND_CAP, localDateKey } from "../../domain/relationship.js";
+import { PROTOTYPE_PLAY } from "../../simulation/pet-simulation.js";
 
 type OverlayTab =
   | "activity"
@@ -75,12 +77,17 @@ export async function initializePetOverlay(
   const careError = requiredElement<HTMLOutputElement>("#care-error");
   const shopWallet = requiredElement<HTMLElement>("#shop-wallet");
   const health = requiredElement<HTMLProgressElement>("#health");
+  const affection = requiredElement<HTMLProgressElement>("#affection");
+  const bond = requiredElement<HTMLProgressElement>("#bond");
   const hygieneStatus = requiredElement<HTMLElement>("#hygiene-status");
   const stressStatus = requiredElement<HTMLElement>("#stress-status");
   const illnessStatus = requiredElement<HTMLElement>("#illness-status");
   const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
   const restButton = requiredElement<HTMLButtonElement>("#rest-button");
   const comfortButton = requiredElement<HTMLButtonElement>("#comfort-button");
+  const petButton = requiredElement<HTMLButtonElement>("#pet-button");
+  const talkButton = requiredElement<HTMLButtonElement>("#talk-button");
+  const playButton = requiredElement<HTMLButtonElement>("#play-button");
   const purchaseButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-purchase-item]"),
   );
@@ -99,6 +106,10 @@ export async function initializePetOverlay(
   const events = new Map<string, MeaningfulEvent>();
   function renderCareState(state: PetState): void {
     health.value = state.care.health;
+    affection.value = state.relationship.affection;
+    affection.title = `Affection: ${state.relationship.affection.toFixed(1)} of 100`;
+    bond.value = state.relationship.bond;
+    bond.title = `Bond: ${state.relationship.bond.toFixed(1)} of 100`;
     hygieneStatus.textContent = hygieneBand(state.care.hygiene);
     stressStatus.textContent = stressBand(state.care.stress);
     const illness = state.care.seriousIllness;
@@ -117,6 +128,12 @@ export async function initializePetOverlay(
       state.care.seriousIllness !== null ||
       state.needs.energy >= 100;
     comfortButton.disabled = Date.now() < state.care.comfortCooldownUntil;
+    petButton.disabled = Date.now() < state.relationship.petCooldownUntil;
+    talkButton.disabled = Date.now() < state.relationship.talkCooldownUntil;
+    playButton.disabled =
+      state.activity !== null ||
+      state.care.seriousIllness !== null ||
+      state.needs.energy < PROTOTYPE_PLAY.energyCost;
     for (const element of quantities) {
       const itemId = element.dataset.itemQuantity ?? "";
       element.textContent = String(state.household.inventory[itemId] ?? 0);
@@ -125,7 +142,11 @@ export async function initializePetOverlay(
       const item = CARE_ITEMS.find(
         (candidate) => candidate.id === button.dataset.purchaseItem,
       );
-      button.disabled = item === undefined || state.household.wallet < item.price;
+      const locked = item !== undefined && state.relationship.bond < item.requiredBond;
+      button.disabled =
+        item === undefined || locked || state.household.wallet < item.price;
+      button.textContent = locked ? `Bond ${item?.requiredBond ?? 0}` : "Buy";
+      button.title = locked ? `Requires Bond ${item?.requiredBond ?? 0}` : "";
     }
     for (const button of useButtons) {
       const item = CARE_ITEMS.find(
@@ -143,7 +164,16 @@ export async function initializePetOverlay(
       const medicineUnavailable =
         item?.action === "medicine" &&
         (state.care.seriousIllness === null || state.care.seriousIllness.medicineUsed);
-      button.disabled = quantity < 1 || targetFull || medicineUnavailable;
+      const today = localDateKey(Date.now());
+      const bondUsed =
+        state.relationship.bondAwardDate === "" || today > state.relationship.bondAwardDate
+          ? 0
+          : state.relationship.bondAwardedToday;
+      const giftUnavailable =
+        item?.action === "gift" &&
+        state.relationship.affection >= 100 &&
+        (state.relationship.bond >= 100 || bondUsed >= DAILY_BOND_CAP);
+      button.disabled = quantity < 1 || targetFull || medicineUnavailable || giftUnavailable;
     }
   }
 
@@ -289,6 +319,9 @@ export async function initializePetOverlay(
   walkButton.addEventListener("click", () => void dispatchCare({ type: "walk" }));
   restButton.addEventListener("click", () => void dispatchCare({ type: "startRest" }));
   comfortButton.addEventListener("click", () => void dispatchCare({ type: "comfort" }));
+  petButton.addEventListener("click", () => void dispatchCare({ type: "pet" }));
+  talkButton.addEventListener("click", () => void dispatchCare({ type: "talk" }));
+  playButton.addEventListener("click", () => void dispatchCare({ type: "startPlay" }));
   for (const button of purchaseButtons) {
     button.addEventListener("click", () => {
       const itemId = button.dataset.purchaseItem;

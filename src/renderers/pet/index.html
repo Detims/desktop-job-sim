@@ -30,6 +30,8 @@
               <label><span>Water</span><progress id="thirst" max="100"></progress></label>
               <label><span>Mood</span><progress id="mood" max="100"></progress></label>
               <label><span>Energy</span><progress id="energy" max="100"></progress></label>
+              <label><span>Affection</span><progress id="affection" max="100"></progress></label>
+              <label><span>Bond</span><progress id="bond" max="100"></progress></label>
             </div>
             <div class="care-bands"><span>Hygiene: <strong id="hygiene-status"></strong></span><span>Stress: <strong id="stress-status"></strong></span></div>
             <div id="illness-status" class="illness-status" hidden></div>
@@ -50,6 +52,9 @@
 
           <div class="overlay-panel" data-overlay-panel="interact" hidden>
             <div class="care-actions">
+              <button id="pet-button" type="button">Pet</button>
+              <button id="talk-button" type="button">Talk</button>
+              <button id="play-button" type="button">Play</button>
               <button id="walk-button" type="button">Walk</button>
               <button id="rest-button" type="button">Rest</button>
               <button data-use-item="core:basic-meal" type="button">Feed</button>
@@ -58,7 +63,7 @@
               <button id="comfort-button" type="button">Comfort</button>
               <button data-use-item="core:medicine" type="button">Medicine</button>
             </div>
-            <p class="care-help">Care actions remain available during work and study.</p>
+            <p class="care-help">Pet, Talk, Comfort, and gifts remain available during major activities.</p>
           </div>
 
           <div class="overlay-panel" data-overlay-panel="shop" hidden>
@@ -68,6 +73,9 @@
               <div><span>Basic Meal <small>+25 Hunger · 5c</small></span><button data-purchase-item="core:basic-meal" type="button">Buy</button></div>
               <div><span>Soap <small>Clean Hygiene · 4c</small></span><button data-purchase-item="core:soap" type="button">Buy</button></div>
               <div><span>Medicine <small>Half recovery · 20c</small></span><button data-purchase-item="core:medicine" type="button">Buy</button></div>
+              <div class="item-category">Gifts</div>
+              <div><span>Small Gift <small>+5 Affection · +0.5 Bond · 8c</small></span><button data-purchase-item="core:small-gift" type="button">Buy</button></div>
+              <div><span>Favorite Treat <small>+12 Affection · +1 Bond · 15c</small></span><button data-purchase-item="core:favorite-treat" type="button">Buy</button></div>
             </div>
           </div>
 
@@ -77,6 +85,8 @@
               <div><span>Basic Meal ×<strong data-item-quantity="core:basic-meal">0</strong></span><button data-use-item="core:basic-meal" type="button">Use</button></div>
               <div><span>Soap ×<strong data-item-quantity="core:soap">0</strong></span><button data-use-item="core:soap" type="button">Use</button></div>
               <div><span>Medicine ×<strong data-item-quantity="core:medicine">0</strong></span><button data-use-item="core:medicine" type="button">Use</button></div>
+              <div><span>Small Gift ×<strong data-item-quantity="core:small-gift">0</strong></span><button data-use-item="core:small-gift" type="button">Give</button></div>
+              <div><span>Favorite Treat ×<strong data-item-quantity="core:favorite-treat">0</strong></span><button data-use-item="core:favorite-treat" type="button">Give</button></div>
             </div>
           </div>
 
