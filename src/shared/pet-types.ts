@@ -34,17 +34,30 @@ export interface CareState {
   stress: number;
 }
 
-export type CareItemAction = "clean" | "drink" | "feed" | "medicine";
+export interface RelationshipState {
+  affection: number;
+  bond: number;
+  bondAwardDate: string;
+  bondAwardedToday: number;
+  growingCloserRecorded: boolean;
+  petCooldownUntil: number;
+  talkCooldownUntil: number;
+}
+
+export type CareItemAction = "clean" | "drink" | "feed" | "gift" | "medicine";
 
 export interface CareItemDefinition {
   action: CareItemAction;
   id: string;
   name: string;
   price: number;
+  relationshipAffection: number;
+  relationshipBond: number;
+  requiredBond: number;
   restoreAmount: number;
 }
 
-export type ActivityType = "careerJob" | "job" | "rest" | "study";
+export type ActivityType = "careerJob" | "job" | "play" | "rest" | "study";
 
 export interface ActivityBonuses {
   restRecovery: number;
@@ -82,6 +95,7 @@ export type Presentation =
   | "idle"
   | "walking"
   | "petted"
+  | "playing"
   | "dragged"
   | "resting"
   | "studying"
@@ -121,9 +135,19 @@ export interface ActiveRest extends ActiveActivityBase {
   type: "rest";
 }
 
+export interface ActivePlay extends ActiveActivityBase {
+  creditedAffection: number;
+  creditedBond: number;
+  creditedEnergyCost: number;
+  creditedMood: number;
+  creditedStressRecovery: number;
+  type: "play";
+}
+
 export type ActiveActivity =
   | ActiveCareerJob
   | ActiveJob
+  | ActivePlay
   | ActiveRest
   | ActiveStudy;
 
@@ -142,6 +166,7 @@ export interface PetState {
   presentationUntil: number | null;
   randomSeed: number;
   qualifications: QualificationState;
+  relationship: RelationshipState;
   stateVersion: number;
   statusText: string;
   updatedAt: number;
@@ -171,8 +196,10 @@ export type PetCommand =
   | { careerId: string; type: "promoteCareer" }
   | { jobId: string; type: "startCareerJob" }
   | { type: "startJob" }
+  | { type: "startPlay" }
   | { type: "startRest" }
   | { studyId?: string | undefined; type: "startStudy" }
+  | { type: "talk" }
   | { itemId: string; type: "useItem" }
   | { type: "walk" };
 
@@ -270,6 +297,17 @@ export interface RestDefinition {
   id: string;
   name: string;
   recoveryEnergy: number;
+  stressRecovery: number;
+}
+
+export interface PlayDefinition {
+  affectionGain: number;
+  bondGain: number;
+  durationMs: number;
+  energyCost: number;
+  id: string;
+  moodGain: number;
+  name: string;
   stressRecovery: number;
 }
 

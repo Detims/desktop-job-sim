@@ -45,6 +45,9 @@ describe("pet-state recovery", () => {
     );
     expect(sandbox.state.care.hygiene).toBe(100);
     expect(demanding.state.care.hygiene).toBeCloseTo(99.25);
+    expect(sandbox.state.relationship.affection).toBe(50);
+    expect(demanding.state.relationship.affection).toBeCloseTo(49.25);
+    expect(demanding.state.relationship.bond).toBe(0);
   });
 
   it("applies at most eight hours of offline decay at half rate", () => {
@@ -63,6 +66,7 @@ describe("pet-state recovery", () => {
       mood: 86,
       thirst: 68,
     });
+    expect(recovered.state.relationship.affection).toBe(46);
     expect(recovered.diagnostics.map(({ code }) => code)).toContain(
       "recovery.offline_capped",
     );

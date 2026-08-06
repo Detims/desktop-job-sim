@@ -1,4 +1,4 @@
-export type MemoryCategory = "career" | "illness" | "qualification";
+export type MemoryCategory = "career" | "illness" | "qualification" | "relationship";
 
 export interface MemoryEntry {
   category: MemoryCategory;

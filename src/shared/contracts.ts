@@ -4,6 +4,7 @@ export type {
   ActiveActivity,
   ActiveCareerJob,
   ActiveJob,
+  ActivePlay,
   ActiveRest,
   ActiveStudy,
   ActivityBonuses,
@@ -32,9 +33,11 @@ export type {
   PersistedPetRecord,
   PetSnapshot,
   PetState,
+  PlayDefinition,
   Presentation,
   QualificationProgress,
   QualificationState,
+  RelationshipState,
   RestDefinition,
   StudyDefinition,
   WindowPoint,
@@ -77,10 +80,21 @@ export const CareStateSchema = z.object({
   stress: z.number().min(0).max(100),
 });
 
+export const RelationshipStateSchema = z.object({
+  affection: z.number().min(0).max(100),
+  bond: z.number().min(0).max(100),
+  bondAwardDate: z.string(),
+  bondAwardedToday: z.number().min(0).max(5),
+  growingCloserRecorded: z.boolean(),
+  petCooldownUntil: z.number().int().nonnegative(),
+  talkCooldownUntil: z.number().int().nonnegative(),
+});
+
 export const PresentationSchema = z.enum([
   "idle",
   "walking",
   "petted",
+  "playing",
   "dragged",
   "resting",
   "studying",
@@ -130,9 +144,23 @@ export const ActiveRestSchema = z.object({
   type: z.literal("rest"),
 });
 
+export const ActivePlaySchema = z.object({
+  accumulatedMs: z.number().nonnegative(),
+  creditedAffection: z.number().nonnegative(),
+  creditedBond: z.number().nonnegative(),
+  creditedEnergyCost: z.number().nonnegative(),
+  creditedMood: z.number().nonnegative(),
+  creditedStressRecovery: z.number().nonnegative(),
+  definitionId: z.string().min(1),
+  durationMs: z.number().positive(),
+  startedAt: z.number().nonnegative(),
+  type: z.literal("play"),
+});
+
 export const ActiveActivitySchema = z.discriminatedUnion("type", [
   ActiveCareerJobSchema,
   ActiveJobSchema,
+  ActivePlaySchema,
   ActiveRestSchema,
   ActiveStudySchema,
 ]);
@@ -191,6 +219,7 @@ const CanonicalPetStateSchema = z.object({
   presentationUntil: z.number().nonnegative().nullable(),
   randomSeed: z.number().int().nonnegative(),
   qualifications: QualificationStateSchema,
+  relationship: RelationshipStateSchema,
   stateVersion: z.number().int().nonnegative(),
   statusText: z.string(),
   updatedAt: z.number().nonnegative(),
@@ -232,6 +261,15 @@ function normalizeLegacyPetState(input: unknown): unknown {
     },
     knowledge: state.knowledge ?? { "core:general": 0 },
     qualifications: state.qualifications ?? {},
+    relationship: state.relationship ?? {
+      affection: 50,
+      bond: 0,
+      bondAwardDate: "",
+      bondAwardedToday: 0,
+      growingCloserRecorded: false,
+      petCooldownUntil: 0,
+      talkCooldownUntil: 0,
+    },
   };
 }
 
@@ -265,17 +303,22 @@ export const PetCommandSchema = z.discriminatedUnion("type", [
   z.object({ careerId: z.string().min(1), type: z.literal("promoteCareer") }),
   z.object({ jobId: z.string().min(1), type: z.literal("startCareerJob") }),
   z.object({ type: z.literal("startJob") }),
+  z.object({ type: z.literal("startPlay") }),
   z.object({ type: z.literal("startRest") }),
   z.object({ studyId: z.string().min(1).optional(), type: z.literal("startStudy") }),
+  z.object({ type: z.literal("talk") }),
   z.object({ itemId: z.string().min(1), type: z.literal("useItem") }),
   z.object({ type: z.literal("walk") }),
 ]);
 
 export const CareItemDefinitionSchema = z.object({
-  action: z.enum(["clean", "drink", "feed", "medicine"]),
+  action: z.enum(["clean", "drink", "feed", "gift", "medicine"]),
   id: z.string().min(1),
   name: z.string().min(1),
   price: z.number().nonnegative(),
+  relationshipAffection: z.number().min(0).max(100).default(0),
+  relationshipBond: z.number().min(0).max(100).default(0),
+  requiredBond: z.number().min(0).max(100).default(0),
   restoreAmount: z.number().min(0).max(100),
 });
 
@@ -378,5 +421,16 @@ export const RestDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   recoveryEnergy: z.number().positive(),
+  stressRecovery: z.number().nonnegative(),
+});
+
+export const PlayDefinitionSchema = z.object({
+  affectionGain: z.number().nonnegative(),
+  bondGain: z.number().nonnegative(),
+  durationMs: z.number().positive(),
+  energyCost: z.number().nonnegative(),
+  id: z.string().min(1),
+  moodGain: z.number().nonnegative(),
+  name: z.string().min(1),
   stressRecovery: z.number().nonnegative(),
 });

@@ -1,5 +1,6 @@
 import type { CareState, NeedState, PetState } from "../shared/pet-types.js";
 import { getCareItem } from "./care-items.js";
+import { applyRelationshipGain } from "./relationship.js";
 
 const HOUR_MS = 60 * 60 * 1_000;
 export const CRITICAL_NEED_GRACE_MS = 30 * 60 * 1_000;
@@ -151,6 +152,9 @@ export function applyCareElapsed(
 
 export function purchaseCareItem(state: PetState, itemId: string): PetState {
   const item = getCareItem(itemId);
+  if (state.relationship.bond < item.requiredBond) {
+    throw new Error(`${item.name} requires Bond ${item.requiredBond}.`);
+  }
   if (state.household.wallet < item.price) {
     throw new Error(`Not enough coins for ${item.name}.`);
   }
@@ -183,7 +187,7 @@ export function useCareItem(state: PetState, itemId: string, now: number): PetSt
   } else if (item.action === "clean") {
     if (care.hygiene >= 100) throw new Error("Hygiene is already Clean.");
     care = { ...care, hygiene: 100 };
-  } else {
+  } else if (item.action === "medicine") {
     const illness = care.seriousIllness;
     if (illness === null) throw new Error("Medicine is only needed during Serious Illness.");
     if (illness.medicineUsed) throw new Error("Medicine has already been used for this illness.");
@@ -195,6 +199,20 @@ export function useCareItem(state: PetState, itemId: string, now: number): PetSt
         recoverAt: now + Math.ceil(Math.max(0, illness.recoverAt - now) / 2),
       },
     };
+  } else {
+    const gained = applyRelationshipGain(
+      state,
+      now,
+      item.relationshipAffection,
+      item.relationshipBond,
+    );
+    if (
+      gained.relationship.affection === state.relationship.affection &&
+      gained.relationship.bond === state.relationship.bond
+    ) {
+      throw new Error("This gift would not provide a relationship benefit right now.");
+    }
+    state = { ...state, relationship: gained.relationship };
   }
 
   const nextQuantity = quantity - 1;
@@ -214,14 +232,15 @@ export function comfortPet(state: PetState, now: number): PetState {
   if (now < state.care.comfortCooldownUntil) {
     throw new Error("Comfort is still on cooldown.");
   }
+  const next = applyRelationshipGain(state, now, 5, 0.5);
   return {
-    ...state,
+    ...next,
     care: {
-      ...state.care,
+      ...next.care,
       comfortCooldownUntil: now + COMFORT_COOLDOWN_MS,
       stress: clamp(state.care.stress - 5),
     },
-    needs: { ...state.needs, mood: clamp(state.needs.mood + 5) },
+    needs: { ...next.needs, mood: clamp(next.needs.mood + 5) },
     presentation: state.care.seriousIllness === null ? "petted" : "ill",
     presentationUntil: state.care.seriousIllness === null ? now + 900 : null,
     statusText: "Comforted.",

@@ -17,6 +17,7 @@ export function activityLabel(activity: ActiveActivity): string {
     return STUDY_LABELS[activity.definitionId] ?? "Study";
   }
   if (activity.type === "rest") return "Rest";
+  if (activity.type === "play") return "Play Together";
   if (activity.type === "careerJob") {
     return CAREER_JOB_LABELS[activity.definitionId] ?? "Career Work";
   }

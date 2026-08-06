@@ -169,6 +169,10 @@ button:disabled {
   filter: drop-shadow(0 0 8px rgb(244 114 182 / 70%));
 }
 
+#pet-shell[data-presentation="playing"] canvas {
+  filter: drop-shadow(0 4px 6px rgb(244 114 182 / 35%));
+}
+
 #pet-shell[data-presentation="working"] canvas {
   filter: drop-shadow(0 0 6px rgb(250 204 21 / 65%));
 }

@@ -6,6 +6,7 @@ const FALLBACKS: Readonly<Record<Presentation, readonly string[]>> =
     idle: ["idle"],
     ill: ["ill", "idle"],
     petted: ["petted", "idle"],
+    playing: ["petted", "idle"],
     resting: ["resting", "idle"],
     studying: ["studying", "working", "idle"],
     walking: ["walking", "idle"],

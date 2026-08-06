@@ -20,6 +20,7 @@ import {
   createInitialPetState,
   startCareerJob,
   startPrototypeJob,
+  startPrototypePlay,
   startPrototypeRest,
   startStudy,
 } from "../simulation/pet-simulation.js";
@@ -32,6 +33,43 @@ import {
   useCareItem,
 } from "../domain/care.js";
 import { getCareItem } from "../domain/care-items.js";
+import { petRelationship, talkToPet } from "../domain/relationship.js";
+
+function relationshipMilestoneMemory(
+  prior: PetState,
+  next: PetState,
+): MemoryEntryDraft | undefined {
+  if (
+    prior.relationship.growingCloserRecorded ||
+    !next.relationship.growingCloserRecorded
+  ) {
+    return undefined;
+  }
+  return {
+    category: "relationship",
+    description: "Built a lasting bond through time, play, conversation, comfort, and thoughtful gifts.",
+    petId: next.petId,
+    title: "Growing Closer",
+  };
+}
+
+function relationshipMilestoneEvent(
+  prior: PetState,
+  next: PetState,
+): MeaningfulEventDraft | undefined {
+  if (
+    prior.relationship.growingCloserRecorded ||
+    !next.relationship.growingCloserRecorded
+  ) {
+    return undefined;
+  }
+  return {
+    details: { bond: next.relationship.bond },
+    petId: next.petId,
+    summary: "Reached the Growing Closer Bond milestone.",
+    type: "relationship.milestone",
+  };
+}
 
 type PatchListener = (patch: PetPatch) => void;
 type DurableCommit = (
@@ -94,6 +132,8 @@ export class PetController {
       priorIllness === null && next.care.seriousIllness !== null;
     const illnessRecovered =
       priorIllness !== null && next.care.seriousIllness === null;
+    const relationshipMemory = relationshipMilestoneMemory(priorState, next);
+    const relationshipEvent = relationshipMilestoneEvent(priorState, next);
     if (priorActivity !== null && next.activity === null) {
       events.unshift({
             details: {
@@ -123,18 +163,22 @@ export class PetController {
         type: "care.recovered",
       });
     }
+    if (relationshipEvent !== undefined) events.push(relationshipEvent);
     this.commit(
       next,
       events.length > 0 ? now : undefined,
       events,
-      illnessRecovered
-        ? [{
+      [
+        ...(illnessRecovered
+          ? [{
             category: "illness",
             description: "Recovered from a Serious Illness and returned to ordinary life.",
             petId: next.petId,
             title: "Recovered from Serious Illness",
-          }]
-        : undefined,
+          } satisfies MemoryEntryDraft]
+          : []),
+        ...(relationshipMemory === undefined ? [] : [relationshipMemory]),
+      ],
     );
     return this.getSnapshot();
   }
@@ -144,12 +188,14 @@ export class PetController {
       switch (command.type) {
         case "comfort": {
           const next = comfortPet(this.state, now);
+          const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
             details: { mood: next.needs.mood, stress: next.care.stress },
             petId: next.petId,
             summary: "Comforted the pet.",
-            type: "care.comforted",
-          }]);
+            type: "relationship.comforted",
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
           break;
         }
         case "attemptExam": {
@@ -204,23 +250,35 @@ export class PetController {
           this.commit(next, now, careerEventDrafts(this.state, next));
           break;
         }
-        case "pet":
-          this.commit(
-            {
-              ...this.state,
-              needs: {
-                ...this.state.needs,
-                mood: Math.min(100, this.state.needs.mood + 3),
-              },
-              presentation:
-                this.state.care.seriousIllness === null ? "petted" : "ill",
-              presentationUntil:
-                this.state.care.seriousIllness === null ? now + 900 : null,
-              statusText: "Purr!",
+        case "pet": {
+          const related = petRelationship(this.state, now);
+          const next = {
+            ...related,
+            needs: {
+              ...related.needs,
+              mood: Math.min(100, related.needs.mood + 3),
             },
+            presentation:
+              related.care.seriousIllness === null ? "petted" as const : "ill" as const,
+            presentationUntil:
+              related.care.seriousIllness === null ? now + 900 : null,
+            statusText: "Purr!",
+          };
+          const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
+          this.commit(
+            next,
             now,
+            [{
+              details: { affection: next.relationship.affection, bond: next.relationship.bond },
+              petId: next.petId,
+              summary: "Petted the pet.",
+              type: "relationship.petted",
+            }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])],
+            memory === undefined ? undefined : [memory],
           );
           break;
+        }
         case "purchaseItem": {
           const item = getCareItem(command.itemId);
           const next = purchaseCareItem(this.state, command.itemId);
@@ -274,15 +332,40 @@ export class PetController {
           );
           break;
         }
+        case "startPlay": {
+          const next = startPrototypePlay(this.state, now);
+          this.commit(
+            next,
+            now,
+            this.state.activity === null && next.activity?.type === "play"
+              ? [this.startEvent("play", next.activity.definitionId)]
+              : undefined,
+          );
+          break;
+        }
         case "useItem": {
           const item = getCareItem(command.itemId);
           const next = useCareItem(this.state, command.itemId, now);
+          const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
             details: { itemId: item.id },
             petId: next.petId,
-            summary: `Used ${item.name}.`,
-            type: "care.item_used",
-          }]);
+            summary: item.action === "gift" ? `Gave ${item.name}.` : `Used ${item.name}.`,
+            type: item.action === "gift" ? "relationship.gifted" : "care.item_used",
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
+          break;
+        }
+        case "talk": {
+          const next = talkToPet(this.state, now);
+          const memory = relationshipMilestoneMemory(this.state, next);
+          const milestoneEvent = relationshipMilestoneEvent(this.state, next);
+          this.commit(next, now, [{
+            details: { affection: next.relationship.affection, bond: next.relationship.bond },
+            petId: next.petId,
+            summary: "Talked with the pet.",
+            type: "relationship.talked",
+          }, ...(milestoneEvent === undefined ? [] : [milestoneEvent])], memory === undefined ? undefined : [memory]);
           break;
         }
         case "promoteCareer": {
@@ -345,7 +428,7 @@ export class PetController {
   }
 
   private startEvent(
-    activityType: "careerJob" | "job" | "rest" | "study",
+    activityType: "careerJob" | "job" | "play" | "rest" | "study",
     definitionId: string,
   ): MeaningfulEventDraft {
     return {
@@ -381,6 +464,7 @@ export class PetController {
       presentationUntil: nextState.presentationUntil,
       randomSeed: nextState.randomSeed,
       qualifications: nextState.qualifications,
+      relationship: nextState.relationship,
       statusText: nextState.statusText,
       updatedAt: nextState.updatedAt,
       household: nextState.household,

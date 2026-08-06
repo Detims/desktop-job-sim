@@ -1,0 +1,10 @@
+{
+  "id": "core:play",
+  "name": "Play Together",
+  "durationMs": 30000,
+  "energyCost": 5,
+  "moodGain": 8,
+  "stressRecovery": 10,
+  "affectionGain": 8,
+  "bondGain": 1
+}

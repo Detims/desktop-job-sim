@@ -51,6 +51,22 @@ describe("care and essentials", () => {
     expect(funded.household).toEqual({ inventory: { "core:medicine": 1 }, wallet: 2 });
   });
 
+  it("locks Favorite Treat and gives relationship gifts atomically", () => {
+    const initial = createInitialPetState(0);
+    const funded = {
+      ...initial,
+      household: { inventory: {}, wallet: 30 },
+    };
+    expect(() => purchaseCareItem(funded, "core:favorite-treat")).toThrow("Bond 10");
+
+    const purchased = purchaseCareItem(funded, "core:small-gift");
+    const given = useCareItem(purchased, "core:small-gift", 1_000);
+    expect(given.household.wallet).toBe(22);
+    expect(given.household.inventory["core:small-gift"]).toBeUndefined();
+    expect(given.relationship.affection).toBe(55);
+    expect(given.relationship.bond).toBe(0.5);
+  });
+
   it("applies a cooldown to free comfort", () => {
     const initial = createInitialPetState(0);
     const stressed = {

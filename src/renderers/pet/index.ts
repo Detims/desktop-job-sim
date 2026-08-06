@@ -144,7 +144,7 @@ function setPresentation(presentation: Presentation): void {
   }
 
   petSprite.tint =
-    presentation === "petted"
+    presentation === "petted" || presentation === "playing"
       ? 0xffd6e7
       : presentation === "working"
         ? 0xfff1b8
@@ -152,7 +152,7 @@ function setPresentation(presentation: Presentation): void {
           ? 0xb7d7c6
           : 0xffffff;
   petSprite.scale.y =
-    presentation === "petted"
+    presentation === "petted" || presentation === "playing"
       ? Math.abs(petSprite.scale.x) * 0.95
       : Math.abs(petSprite.scale.x);
 }
