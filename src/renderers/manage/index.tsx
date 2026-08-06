@@ -148,7 +148,11 @@ function WorkTab({
           <h2>Work &amp; Study</h2>
         </div>
         <span className={activity === null ? "status idle" : "status active"}>
-          {activity === null ? "Available" : activityLabel(activity)}
+          {state.care.seriousIllness !== null
+            ? "Unavailable · Ill"
+            : activity === null
+              ? "Available"
+              : activityLabel(activity)}
         </span>
       </header>
 
@@ -156,6 +160,11 @@ function WorkTab({
         Choose one major activity at a time. Progress is earned continuously,
         and cancellation keeps the amount already earned.
       </p>
+      {state.care.seriousIllness !== null && (
+        <aside className="condition-note">
+          Serious Illness blocks work, study, exams, walking, and rest until recovery.
+        </aside>
+      )}
 
       {activity !== null && (
         <div className="activity-card">
@@ -638,7 +647,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
         <span className="status idle">Permanent</span>
       </header>
       <p className="description">
-        Qualifications and major career milestones live here independently of Activity retention.
+        Qualifications, recoveries, and major career milestones live here independently of Activity retention.
       </p>
       {error !== null && <div className="error-banner">{error}</div>}
       {memories.length === 0 && !loading ? (

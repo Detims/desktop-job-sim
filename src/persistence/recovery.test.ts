@@ -43,6 +43,8 @@ describe("pet-state recovery", () => {
     expect(demanding.state.needs.hunger).toBeCloseTo(
       initial.needs.hunger - 1.5,
     );
+    expect(sandbox.state.care.hygiene).toBe(100);
+    expect(demanding.state.care.hygiene).toBeCloseTo(99.25);
   });
 
   it("applies at most eight hours of offline decay at half rate", () => {

@@ -101,6 +101,22 @@ describe("pet simulation", () => {
     expect(later.activity).toBeNull();
   });
 
+  it("settles proportional work before Serious Illness interrupts it", () => {
+    const initial = createInitialPetState(1_000);
+    const working = startPrototypeJob({
+      ...initial,
+      care: { ...initial.care, health: 19 },
+    }, 1_000);
+    const interrupted = advancePetState(working, 5_000, 6_000);
+
+    expect(interrupted.activity).toBeNull();
+    expect(interrupted.care.seriousIllness).not.toBeNull();
+    expect(interrupted.household.wallet).toBeCloseTo(
+      PROTOTYPE_JOB.rewardCoins / 3,
+    );
+    expect(interrupted.mastery).toBeCloseTo(PROTOTYPE_JOB.rewardMastery / 3);
+  });
+
   it("adds the completion-only mastery bonus exactly once", () => {
     const completed = advanceInSteps(1, PROTOTYPE_JOB.durationMs);
     const later = advancePetState(

@@ -86,6 +86,42 @@ describe("PetController", () => {
     ]);
   });
 
+  it("commits one permanent Memory when Serious Illness recovers", () => {
+    const initial = new PetController(1_000).getSnapshot().state;
+    const events: MeaningfulEventDraft[] = [];
+    const memories: MemoryEntryDraft[] = [];
+    const controller = new PetController(
+      {
+        ...initial,
+        care: {
+          ...initial.care,
+          health: 12,
+          seriousIllness: {
+            medicineUsed: false,
+            recoverAt: 2_000,
+            startedAt: 1_000,
+          },
+        },
+        presentation: "ill",
+      },
+      (_state, _now, drafts = [], memoryDrafts = []) => {
+        events.push(...drafts);
+        memories.push(...memoryDrafts);
+      },
+    );
+
+    controller.tick(1_000, 2_000);
+    controller.tick(1_000, 3_000);
+
+    expect(events.filter((event) => event.type === "care.recovered")).toHaveLength(1);
+    expect(memories).toEqual([
+      expect.objectContaining({
+        category: "illness",
+        title: "Recovered from Serious Illness",
+      }),
+    ]);
+  });
+
   it("enforces one major activity and applies configured furniture bonuses", async () => {
     const controller = new PetController(
       {
