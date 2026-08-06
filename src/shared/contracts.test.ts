@@ -13,6 +13,7 @@ describe("pet-state contracts", () => {
     delete legacy.knowledge;
     delete legacy.household;
     delete legacy.qualifications;
+    delete legacy.relationship;
     legacy.wallet = 27;
     legacy.activity = {
       accumulatedMs: 5_000,
@@ -32,6 +33,7 @@ describe("pet-state contracts", () => {
     expect(parsed.knowledge).toEqual({ "core:general": 0 });
     expect(parsed.household).toEqual({ inventory: {}, wallet: 27 });
     expect(parsed.qualifications).toEqual({});
+    expect(parsed.relationship).toEqual(expect.objectContaining({ affection: 50, bond: 0 }));
     expect(parsed.activity).toEqual(expect.objectContaining({ type: "job" }));
   });
 });

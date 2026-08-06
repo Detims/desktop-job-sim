@@ -4,14 +4,19 @@ import rawPrototypeJob from "../../content/core/jobs/prototype-job.json" with {
 import rawRest from "../../content/core/activities/rest.json" with {
   type: "json",
 };
+import rawPlay from "../../content/core/activities/play.json" with {
+  type: "json",
+};
 import {
   JobDefinitionSchema,
+  PlayDefinitionSchema,
   RestDefinitionSchema,
   type ActiveActivity,
   type ActivityBonuses,
   type JobDefinition,
   type NeedState,
   type PetState,
+  type PlayDefinition,
   type Presentation,
   type RestDefinition,
   type StudyDefinition,
@@ -30,9 +35,14 @@ import {
   applyCareElapsed,
   assertSafeForMajorActivity,
 } from "../domain/care.js";
+import {
+  applyAffectionElapsed,
+  applyRelationshipGain,
+} from "../domain/relationship.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
+export const PROTOTYPE_PLAY = PlayDefinitionSchema.parse(rawPlay);
 export const PROTOTYPE_STUDY = getStudyDefinition("core:general-study");
 
 export const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
@@ -78,12 +88,14 @@ export function presentationForActivity(
   if (activity === null) return "idle";
   if (activity.type === "study") return "studying";
   if (activity.type === "rest") return "resting";
+  if (activity.type === "play") return "playing";
   return "working";
 }
 
 export function activityDisplayName(activity: ActiveActivity): string {
   if (activity.type === "study") return PROTOTYPE_STUDY.name;
   if (activity.type === "rest") return PROTOTYPE_REST.name;
+  if (activity.type === "play") return PROTOTYPE_PLAY.name;
   if (activity.type === "careerJob") {
     return getCareerJobDefinition(activity.definitionId).name;
   }
@@ -119,6 +131,15 @@ export function createInitialPetState(now: number): PetState {
     presentationUntil: null,
     randomSeed: 0x5eed,
     qualifications: {},
+    relationship: {
+      affection: 50,
+      bond: 0,
+      bondAwardDate: "",
+      bondAwardedToday: 0,
+      growingCloserRecorded: false,
+      petCooldownUntil: 0,
+      talkCooldownUntil: 0,
+    },
     stateVersion: 0,
     statusText: "Ready to play.",
     updatedAt: now,
@@ -256,6 +277,36 @@ export function startPrototypeRest(
   };
 }
 
+export function startPrototypePlay(
+  state: PetState,
+  now: number,
+  definition: PlayDefinition = PROTOTYPE_PLAY,
+): PetState {
+  assertSafeForMajorActivity(state);
+  if (state.activity !== null) return state;
+  if (state.needs.energy < definition.energyCost) {
+    return { ...state, statusText: "Too tired to play." };
+  }
+  return {
+    ...state,
+    activity: {
+      accumulatedMs: 0,
+      creditedAffection: 0,
+      creditedBond: 0,
+      creditedEnergyCost: 0,
+      creditedMood: 0,
+      creditedStressRecovery: 0,
+      definitionId: definition.id,
+      durationMs: definition.durationMs,
+      startedAt: now,
+      type: "play",
+    },
+    presentation: "playing",
+    presentationUntil: null,
+    statusText: `Playing: ${definition.name}`,
+  };
+}
+
 export function cancelActiveActivity(state: PetState): PetState {
   if (state.activity === null) return state;
   const name = activityDisplayName(state.activity);
@@ -284,13 +335,14 @@ export function applyOfflineNeedDecay(
     NEED_DECAY_PER_HOUR,
     (boundedElapsedMs / HOUR_MS) * rate,
   );
-  return applyCareElapsed({
+  const cared = applyCareElapsed({
     ...state,
     needs,
     presentation: presentationForActivity(state.activity),
     presentationUntil: null,
     updatedAt: now,
   }, needs, boundedElapsedMs, now, rate);
+  return applyAffectionElapsed(cared, boundedElapsedMs, rate);
 }
 
 function advanceRest(
@@ -373,11 +425,15 @@ export function advancePetState(
   state = reconcileTimedState(state, now);
   const safeElapsedMs = Math.max(0, elapsedMs);
   if (state.activity?.type === "rest") {
-    return advanceRest(
-      state,
+    return applyAffectionElapsed(
+      advanceRest(
+        state,
+        safeElapsedMs,
+        now,
+        restDefinition,
+        passiveNeedMultiplier,
+      ),
       safeElapsedMs,
-      now,
-      restDefinition,
       passiveNeedMultiplier,
     );
   }
@@ -478,6 +534,41 @@ export function advancePetState(
           creditedCoins: targetCoins,
         };
       }
+    } else if (activity.type === "play") {
+      const definition = PROTOTYPE_PLAY;
+      const targetAffection = definition.affectionGain * progress;
+      const targetBond = definition.bondGain * progress;
+      const targetEnergyCost = definition.energyCost * progress;
+      const targetMood = definition.moodGain * progress;
+      const targetStressRecovery = definition.stressRecovery * progress;
+      needs = {
+        ...needs,
+        energy: clampNeed(
+          needs.energy - (targetEnergyCost - activity.creditedEnergyCost),
+        ),
+        mood: clampNeed(needs.mood + (targetMood - activity.creditedMood)),
+      };
+      stressDelta -= targetStressRecovery - activity.creditedStressRecovery;
+      state = applyRelationshipGain(
+        state,
+        now,
+        targetAffection - activity.creditedAffection,
+        targetBond - activity.creditedBond,
+      );
+      if (nextAccumulatedMs >= activity.durationMs) {
+        activity = null;
+        statusText = `Completed ${definition.name}.`;
+      } else {
+        activity = {
+          ...activity,
+          accumulatedMs: nextAccumulatedMs,
+          creditedAffection: targetAffection,
+          creditedBond: targetBond,
+          creditedEnergyCost: targetEnergyCost,
+          creditedMood: targetMood,
+          creditedStressRecovery: targetStressRecovery,
+        };
+      }
     } else {
       const resolvedStudyDefinition =
         activity.definitionId === studyDefinition.id
@@ -531,5 +622,8 @@ export function advancePetState(
     statusText,
     updatedAt: now,
   }, needs, safeElapsedMs, now, passiveNeedMultiplier, stressDelta);
-  return reconcileCareerProgression(next, now);
+  return reconcileCareerProgression(
+    applyAffectionElapsed(next, safeElapsedMs, passiveNeedMultiplier),
+    now,
+  );
 }

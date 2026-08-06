@@ -7,7 +7,9 @@ import {
   PROTOTYPE_REST,
   PROTOTYPE_STUDY,
   PROTOTYPE_JOB,
+  PROTOTYPE_PLAY,
   startPrototypeJob,
+  startPrototypePlay,
   startPrototypeRest,
   startPrototypeStudy,
   startStudy,
@@ -296,5 +298,40 @@ describe("pet simulation", () => {
       cancelActiveActivity(studied).knowledge["core:general"],
     ).toBeCloseTo(5.25);
     expect(cancelActiveActivity(rested).needs.energy).toBeGreaterThan(57.8);
+  });
+
+  it("settles Play gains and costs proportionally and deterministically", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      care: { ...createInitialPetState(0).care, stress: 30 },
+      needs: { ...createInitialPetState(0).needs, mood: 50 },
+    };
+    const halfway = advancePetState(
+      startPrototypePlay(initial, 0),
+      PROTOTYPE_PLAY.durationMs / 2,
+      PROTOTYPE_PLAY.durationMs / 2,
+    );
+    const cancelled = cancelActiveActivity(halfway);
+
+    expect(cancelled.relationship.affection).toBeCloseTo(54 - 0.5 / 120);
+    expect(cancelled.relationship.bond).toBeCloseTo(0.5);
+    expect(cancelled.needs.mood).toBeCloseTo(54 - 0.5 / 120);
+    expect(cancelled.needs.energy).toBeCloseTo(85.5 - 0.5 / 80);
+    expect(cancelled.care.stress).toBeCloseTo(25);
+    expect(cancelled.activity).toBeNull();
+
+    let stepped = startPrototypePlay(initial, 0);
+    for (let second = 1; second <= 30; second += 1) {
+      stepped = advancePetState(stepped, 1_000, second * 1_000);
+    }
+    const oneTick = advancePetState(
+      startPrototypePlay(initial, 0),
+      PROTOTYPE_PLAY.durationMs,
+      PROTOTYPE_PLAY.durationMs,
+    );
+    expect(stepped.relationship.affection).toBeCloseTo(oneTick.relationship.affection, 8);
+    expect(stepped.relationship.bond).toBeCloseTo(oneTick.relationship.bond, 8);
+    expect(stepped.needs.energy).toBeCloseTo(oneTick.needs.energy, 8);
+    expect(stepped.care.stress).toBeCloseTo(oneTick.care.stress, 8);
   });
 });

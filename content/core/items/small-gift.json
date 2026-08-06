@@ -1,0 +1,10 @@
+{
+  "id": "core:small-gift",
+  "name": "Small Gift",
+  "action": "gift",
+  "price": 8,
+  "restoreAmount": 0,
+  "relationshipAffection": 5,
+  "relationshipBond": 0.5,
+  "requiredBond": 0
+}

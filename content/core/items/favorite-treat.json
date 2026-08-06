@@ -1,0 +1,10 @@
+{
+  "id": "core:favorite-treat",
+  "name": "Favorite Treat",
+  "action": "gift",
+  "price": 15,
+  "restoreAmount": 0,
+  "relationshipAffection": 12,
+  "relationshipBond": 1,
+  "requiredBond": 10
+}
