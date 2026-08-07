@@ -439,6 +439,17 @@ function advanceRest(
   );
 }
 
+function elapsedAtOrAboveStressThreshold(
+  elapsedMs: number,
+  startStress: number,
+  endStress: number,
+  threshold: number,
+): number {
+  if (startStress >= threshold) return elapsedMs;
+  if (endStress < threshold || endStress <= startStress) return 0;
+  return elapsedMs * ((endStress - threshold) / (endStress - startStress));
+}
+
 export function advancePetState(
   state: PetState,
   elapsedMs: number,
@@ -666,7 +677,16 @@ export function advancePetState(
         ? "work"
         : "none";
   const hadBurnout = isBurnedOut(next);
-  next = applyBurnoutExposure(next, activeElapsedForExposure, now, exposureMode);
+  const exposureElapsedMs =
+    exposureMode === "work"
+      ? elapsedAtOrAboveStressThreshold(
+          activeElapsedForExposure,
+          state.care.stress,
+          next.care.stress,
+          75,
+        )
+      : activeElapsedForExposure;
+  next = applyBurnoutExposure(next, exposureElapsedMs, now, exposureMode);
   if (
     !hadBurnout &&
     isBurnedOut(next) &&

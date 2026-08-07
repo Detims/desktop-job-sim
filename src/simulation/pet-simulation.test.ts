@@ -334,4 +334,79 @@ describe("pet simulation", () => {
     expect(stepped.needs.energy).toBeCloseTo(oneTick.needs.energy, 8);
     expect(stepped.care.stress).toBeCloseTo(oneTick.care.stress, 8);
   });
+
+  it("applies Burnout modifiers without reducing stress or relationship recovery", () => {
+    const initial = createInitialPetState(0);
+    const burnedOut = {
+      ...initial,
+      care: { ...initial.care, stress: 40 },
+      conditions: {
+        "core:burnout": {
+          conditionId: "core:burnout",
+          expiresAt: 1_000_000,
+        },
+      },
+      needs: { ...initial.needs, energy: 50, mood: 50 },
+    };
+    const studied = advancePetState(
+      startPrototypeStudy(burnedOut, 0, NO_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+    const rested = advancePetState(
+      startPrototypeRest(burnedOut, 0, NO_BONUSES),
+      PROTOTYPE_REST.durationMs,
+      PROTOTYPE_REST.durationMs,
+    );
+    const played = advancePetState(
+      startPrototypePlay(burnedOut, 0),
+      PROTOTYPE_PLAY.durationMs,
+      PROTOTYPE_PLAY.durationMs,
+    );
+    const passiveDecay = 1.5 * (PROTOTYPE_REST.durationMs / 3_600_000);
+
+    expect(studied.knowledge["core:general"]).toBeCloseTo(7.5);
+    expect(rested.needs.energy).toBeCloseTo(50 + 12 - passiveDecay);
+    expect(rested.care.stress).toBeCloseTo(32);
+    expect(played.needs.mood).toBeCloseTo(56 - 0.5 / 120);
+    expect(played.care.stress).toBeCloseTo(30);
+    expect(played.relationship.affection).toBeCloseTo(58 - 0.5 / 120);
+    expect(played.relationship.bond).toBeCloseTo(1);
+    expect(played.conditions["core:burnout"]?.expiresAt).toBe(880_000);
+  });
+
+  it("blocks demanding activities during Burnout but permits low-tier ones", () => {
+    const initial = createInitialPetState(0);
+    const burnedOut = {
+      ...initial,
+      conditions: {
+        "core:burnout": {
+          conditionId: "core:burnout",
+          expiresAt: 600_000,
+        },
+      },
+    };
+
+    expect(() =>
+      startStudy(burnedOut, 0, NO_BONUSES, "core:business-fundamentals"),
+    ).toThrow("Burnout blocks demanding");
+    expect(startPrototypeStudy(burnedOut, 0, NO_BONUSES).activity?.type)
+      .toBe("study");
+    expect(startPrototypeJob(burnedOut, 0).activity?.type).toBe("job");
+  });
+
+  it("counts only the portion of work elapsed at or above 75 stress", () => {
+    const initial = createInitialPetState(0);
+    const working = startPrototypeJob({
+      ...initial,
+      care: { ...initial.care, stress: 74 },
+    }, 0);
+    const completed = advancePetState(
+      working,
+      PROTOTYPE_JOB.durationMs,
+      PROTOTYPE_JOB.durationMs,
+    );
+
+    expect(completed.care.overworkExposureMs).toBeCloseTo(10_000);
+  });
 });

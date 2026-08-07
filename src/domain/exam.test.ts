@@ -66,4 +66,17 @@ describe("qualification exams", () => {
       examCooldowns: {},
     });
   });
+
+  it("blocks exams during Burnout", () => {
+    const state = readyState(15);
+    expect(() => attemptExam({
+      ...state,
+      conditions: {
+        "core:burnout": {
+          conditionId: "core:burnout",
+          expiresAt: 600_000,
+        },
+      },
+    }, ADMINISTRATIVE_ASSISTANT_EXAM.id, 2_000)).toThrow("Burnout blocks exams");
+  });
 });

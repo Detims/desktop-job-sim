@@ -132,13 +132,19 @@ function WorkTab({
   const moodMultiplier = 0.75 + state.needs.mood / 200;
   const deskMultiplier = 0.05;
   const expectedStudyGain =
-    prototypeStudy.rewardKnowledge * (moodMultiplier + deskMultiplier);
+    prototypeStudy.rewardKnowledge *
+    (moodMultiplier + deskMultiplier) *
+    (state.conditions["core:burnout"] === undefined ? 1 : 0.75);
   const clerk = state.careers[clerkCareer.id];
   const administrative = state.careers[administrativeCareer.id];
   const businessKnowledge =
     state.knowledge[administrativeExam.knowledgeFieldId] ?? 0;
   const discouraged = state.conditions[administrativeExam.condition.id];
+  const burnout = state.conditions["core:burnout"];
   const conditionMultiplier = discouraged === undefined ? 1 : 0.9;
+  const burnoutStudyMultiplier = burnout === undefined ? 1 : 0.75;
+  const canStartAction = (demanding: boolean) =>
+    canStart && (!demanding || burnout === undefined);
 
   return (
     <section className="tab-panel" aria-labelledby="work-tab">
@@ -228,7 +234,7 @@ function WorkTab({
         <div className="actions">
           <button
             className="primary"
-            disabled={!canStart}
+            disabled={!canStartAction(prototypeStudy.demanding)}
             onClick={() => void dispatch({ type: "startStudy" })}
             type="button"
           >
@@ -259,7 +265,8 @@ function WorkTab({
             const result =
               study.rewardKnowledge *
               (moodMultiplier + deskMultiplier) *
-              conditionMultiplier;
+              conditionMultiplier *
+              burnoutStudyMultiplier;
             return (
               <article className="job-card" key={study.id}>
                 <div>
@@ -272,7 +279,8 @@ function WorkTab({
                 </div>
                 <button
                   className="primary"
-                  disabled={!canStart}
+                  disabled={!canStartAction(study.demanding)}
+                  title={burnout !== undefined ? "Burnout blocks demanding study." : ""}
                   onClick={() => void dispatch({ studyId: study.id, type: "startStudy" })}
                   type="button"
                 >
@@ -305,7 +313,7 @@ function WorkTab({
         <div className="actions">
           <button
             className="primary"
-            disabled={!canStart}
+            disabled={!canStartAction(prototypeJob.demanding)}
             onClick={() => void dispatch({ type: "startJob" })}
             type="button"
           >
@@ -368,7 +376,8 @@ function WorkTab({
                   </div>
                   <button
                     className="primary"
-                    disabled={!unlocked || !canStart}
+                    disabled={!unlocked || !canStartAction(job.demanding)}
+                    title={unlocked && burnout !== undefined && job.demanding ? "Burnout blocks demanding work." : ""}
                     onClick={() => void dispatch({ jobId: job.id, type: "startCareerJob" })}
                     type="button"
                   >
@@ -410,7 +419,8 @@ function WorkTab({
               </div>
               <button
                 className="primary"
-                disabled={!canStart}
+                disabled={!canStartAction(scheduleCoordination.demanding)}
+                title={burnout !== undefined ? "Burnout blocks demanding work." : ""}
                 onClick={() => void dispatch({ jobId: scheduleCoordination.id, type: "startCareerJob" })}
                 type="button"
               >
@@ -447,10 +457,12 @@ function CareersTab({
     state.qualifications[administrativeExam.qualificationId] !== undefined;
   const cooldownUntil = state.examCooldowns[administrativeExam.id] ?? 0;
   const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+  const burnout = state.conditions["core:burnout"];
   const canAttemptExam =
     !qualified &&
     state.activity === null &&
     state.care.seriousIllness === null &&
+    burnout === undefined &&
     cooldownSeconds === 0 &&
     businessKnowledge >= administrativeExam.riskMinimumKnowledge &&
     state.needs.energy >= administrativeExam.minimumEnergy &&
@@ -571,6 +583,7 @@ function CareersTab({
             <button
               className="primary"
               disabled={!canAttemptExam}
+              title={burnout !== undefined ? "Burnout blocks exams." : ""}
               onClick={() => void dispatch({ examId: administrativeExam.id, type: "attemptExam" })}
               type="button"
             >
@@ -736,6 +749,18 @@ function App() {
       </nav>
 
       {error !== null && <div className="error-banner">{error}</div>}
+      {state.conditions["core:burnout"] !== undefined && (
+        <aside className="burnout-banner-management" role="status">
+          <strong>
+            Burnout · {Math.max(0, Math.ceil((state.conditions["core:burnout"]!.expiresAt - Date.now()) / 1000))}s remaining
+          </strong>
+          <span>
+            Demanding work, demanding study, and exams are blocked. Study gains
+            -25%, Rest energy -20%, and positive Mood gains -25%. Rest or Play
+            speeds recovery.
+          </span>
+        </aside>
+      )}
       {activeTab === "work" ? (
         <WorkTab
           dispatch={dispatch}
