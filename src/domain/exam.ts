@@ -5,6 +5,10 @@ import {
   type PetState,
 } from "../shared/contracts.js";
 import { assertSafeForMajorActivity } from "./care.js";
+import {
+  assertNotBurnedOutForExam,
+  reconcileBurnoutState,
+} from "./burnout.js";
 
 export const ADMINISTRATIVE_ASSISTANT_EXAM =
   ExamDefinitionSchema.parse(rawAdministrativeExam);
@@ -38,6 +42,7 @@ export function getExamDefinition(examId: string): ExamDefinition {
 }
 
 export function reconcileTimedState(state: PetState, now: number): PetState {
+  state = reconcileBurnoutState(state, now);
   const conditions = Object.fromEntries(
     Object.entries(state.conditions).filter(([, value]) => value.expiresAt > now),
   );
@@ -76,6 +81,7 @@ export function attemptExam(
 ): ExamResolution {
   const state = reconcileTimedState(rawState, now);
   assertSafeForMajorActivity(state);
+  assertNotBurnedOutForExam(state);
   const definition = getExamDefinition(examId);
   const knowledge = state.knowledge[definition.knowledgeFieldId] ?? 0;
   if (state.activity !== null) {

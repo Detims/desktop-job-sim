@@ -25,10 +25,12 @@ export interface SeriousIllnessState {
 }
 
 export interface CareState {
+  burnoutProtectedUntil: number;
   comfortCooldownUntil: number;
   criticalExposureMs: CriticalExposureState;
   health: number;
   hygiene: number;
+  overworkExposureMs: number;
   recoveryProtectedUntil: number;
   seriousIllness: SeriousIllnessState | null;
   stress: number;
@@ -217,6 +219,7 @@ export interface PersistedPetRecord {
 
 export interface JobDefinition {
   completionMasteryBonus: number;
+  demanding: boolean;
   durationMs: number;
   id: string;
   name: string;
@@ -248,6 +251,7 @@ export interface CareerDefinition {
 export interface CareerJobDefinition {
   careerId: string;
   completionCareerXpBonus: number;
+  demanding: boolean;
   durationMs: number;
   id: string;
   name: string;
@@ -259,6 +263,7 @@ export interface CareerJobDefinition {
 }
 
 export interface StudyDefinition {
+  demanding: boolean;
   durationMs: number;
   id: string;
   knowledgeFieldId: string;

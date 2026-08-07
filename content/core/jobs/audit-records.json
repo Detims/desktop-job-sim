@@ -1,6 +1,7 @@
 {
   "careerId": "core:clerk",
   "completionCareerXpBonus": 0,
+  "demanding": true,
   "durationMs": 25000,
   "id": "core:clerk:audit-records",
   "name": "Audit Records",

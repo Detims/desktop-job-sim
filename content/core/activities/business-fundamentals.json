@@ -1,5 +1,6 @@
 {
   "durationMs": 15000,
+  "demanding": true,
   "id": "core:business-fundamentals",
   "knowledgeFieldId": "core:business-administration",
   "name": "Business Fundamentals",
