@@ -19,6 +19,7 @@ export interface RecoveryDiagnostic {
 }
 
 export interface RecoveryResult {
+  burnoutRecovered: boolean;
   diagnostics: readonly RecoveryDiagnostic[];
   illnessRecovered: boolean;
   offlineElapsedMs: number;
@@ -34,9 +35,10 @@ export function recoverPetState(
 ): RecoveryResult {
   const diagnostics: RecoveryDiagnostic[] = [];
   const rawElapsedMs = now - savedAt;
+  const validClock = Number.isFinite(rawElapsedMs) && rawElapsedMs >= 0;
   let offlineElapsedMs = 0;
 
-  if (!Number.isFinite(rawElapsedMs) || rawElapsedMs < 0) {
+  if (!validClock) {
     diagnostics.push({
       code: "recovery.invalid_clock",
       context: { now, savedAt },
@@ -53,13 +55,14 @@ export function recoverPetState(
 
   const hadActiveActivity = persistedState.activity !== null;
   const cancelledState = cancelActiveActivity(persistedState);
+  const effectiveNow = validClock ? now : savedAt;
   let state = applyOfflineNeedDecay(
     cancelledState,
     offlineElapsedMs,
-    now,
+    effectiveNow,
     onlineNeedMultiplier * OFFLINE_NEED_RATE,
   );
-  state = reconcileTimedState(state, now);
+  state = reconcileTimedState(state, effectiveNow);
   state = {
     ...state,
     stateVersion: state.stateVersion + 1,
@@ -75,6 +78,9 @@ export function recoverPetState(
   }
 
   return {
+    burnoutRecovered:
+      persistedState.conditions["core:burnout"] !== undefined &&
+      state.conditions["core:burnout"] === undefined,
     diagnostics,
     illnessRecovered:
       persistedState.care.seriousIllness !== null &&

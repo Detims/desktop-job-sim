@@ -34,6 +34,7 @@ import {
 } from "../domain/care.js";
 import { getCareItem } from "../domain/care-items.js";
 import { petRelationship, talkToPet } from "../domain/relationship.js";
+import { BURNOUT_CONDITION_ID } from "../domain/burnout.js";
 
 function relationshipMilestoneMemory(
   prior: PetState,
@@ -121,6 +122,7 @@ export class PetController {
     const priorState = this.state;
     const priorActivity = this.state.activity;
     const priorIllness = this.state.care.seriousIllness;
+    const priorBurnout = this.state.conditions[BURNOUT_CONDITION_ID];
     const next = advancePetState(
       this.state,
       elapsedMs,
@@ -132,6 +134,12 @@ export class PetController {
       priorIllness === null && next.care.seriousIllness !== null;
     const illnessRecovered =
       priorIllness !== null && next.care.seriousIllness === null;
+    const burnoutStarted =
+      priorBurnout === undefined &&
+      next.conditions[BURNOUT_CONDITION_ID] !== undefined;
+    const burnoutRecovered =
+      priorBurnout !== undefined &&
+      next.conditions[BURNOUT_CONDITION_ID] === undefined;
     const relationshipMemory = relationshipMilestoneMemory(priorState, next);
     const relationshipEvent = relationshipMilestoneEvent(priorState, next);
     if (priorActivity !== null && next.activity === null) {
@@ -143,8 +151,14 @@ export class PetController {
             petId: this.state.petId,
             summary: illnessStarted
               ? `${priorActivity.type} stopped by Serious Illness; partial progress kept.`
+              : burnoutStarted && next.statusText.includes("stopped")
+                ? `${priorActivity.type} stopped by Burnout; partial progress kept.`
               : `${priorActivity.type} completed.`,
-            type: illnessStarted ? "activity.cancelled" : "activity.completed",
+            type:
+              illnessStarted ||
+              (burnoutStarted && next.statusText.includes("stopped"))
+                ? "activity.cancelled"
+                : "activity.completed",
           });
     }
     if (illnessStarted) {
@@ -161,6 +175,25 @@ export class PetController {
         petId: next.petId,
         summary: "Recovered from Serious Illness.",
         type: "care.recovered",
+      });
+    }
+    if (burnoutStarted) {
+      events.push({
+        details: {
+          exposureMs: next.care.overworkExposureMs,
+          expiresAt: next.conditions[BURNOUT_CONDITION_ID]!.expiresAt,
+        },
+        petId: next.petId,
+        summary: "Burnout began.",
+        type: "care.burnout_started",
+      });
+    }
+    if (burnoutRecovered) {
+      events.push({
+        details: { protectedUntil: next.care.burnoutProtectedUntil },
+        petId: next.petId,
+        summary: "Recovered from Burnout.",
+        type: "care.burnout_recovered",
       });
     }
     if (relationshipEvent !== undefined) events.push(relationshipEvent);

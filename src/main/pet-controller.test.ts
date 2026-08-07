@@ -122,6 +122,60 @@ describe("PetController", () => {
     ]);
   });
 
+  it("durably records Burnout start and recovery once without a Memory", async () => {
+    const initial = new PetController(0).getSnapshot().state;
+    const events: MeaningfulEventDraft[] = [];
+    const memories: MemoryEntryDraft[] = [];
+    const controller = new PetController(
+      {
+        ...initial,
+        care: {
+          ...initial.care,
+          overworkExposureMs: 59_000,
+          stress: 80,
+        },
+      },
+      (_state, _now, drafts = [], memoryDrafts = []) => {
+        events.push(...drafts);
+        memories.push(...memoryDrafts);
+      },
+    );
+
+    await controller.dispatch({ type: "startStudy" }, 1_000);
+    controller.tick(1_000, 2_000);
+    expect(controller.getSnapshot().state.activity?.type).toBe("study");
+    controller.tick(600_000, 602_000);
+    controller.tick(1_000, 603_000);
+
+    expect(events.filter(({ type }) => type === "care.burnout_started")).toHaveLength(1);
+    expect(events.filter(({ type }) => type === "care.burnout_recovered")).toHaveLength(1);
+    expect(memories).toEqual([]);
+  });
+
+  it("cancels demanding study with proportional progress when Burnout begins", async () => {
+    const initial = new PetController(0).getSnapshot().state;
+    const controller = new PetController({
+      ...initial,
+      care: {
+        ...initial.care,
+        overworkExposureMs: 59_000,
+        stress: 80,
+      },
+    });
+
+    await controller.dispatch(
+      { studyId: "core:business-fundamentals", type: "startStudy" },
+      1_000,
+    );
+    controller.tick(1_000, 2_000);
+
+    expect(controller.getSnapshot().state.activity).toBeNull();
+    expect(
+      controller.getSnapshot().state.knowledge["core:business-administration"],
+    ).toBeGreaterThan(0);
+    expect(controller.getSnapshot().state.statusText).toContain("Burnout stopped");
+  });
+
   it("commits Growing Closer exactly once with the relationship state", async () => {
     const initial = new PetController(1_000).getSnapshot().state;
     const memories: MemoryEntryDraft[] = [];

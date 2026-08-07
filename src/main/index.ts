@@ -805,6 +805,20 @@ app.whenReady().then(() => {
           title: "Recovered from Serious Illness",
         }];
       }
+      if (recovery.burnoutRecovered) {
+        startupEvents.push({
+          details: { protectedUntil: recovery.state.care.burnoutProtectedUntil },
+          petId: recovery.state.petId,
+          summary: "Recovered from Burnout while away.",
+          type: "care.burnout_recovered",
+        });
+        diagnosticLogger.write(
+          "info",
+          "care.burnout_recovered",
+          "Burnout recovered while the application was closed.",
+          { protectedUntil: recovery.state.care.burnoutProtectedUntil },
+        );
+      }
       for (const diagnostic of recovery.diagnostics) {
         diagnosticLogger.write(
           diagnostic.code === "recovery.clean_start" ? "info" : "warning",
@@ -835,6 +849,19 @@ app.whenReady().then(() => {
       initialState,
       (state, committedAt, events, memories) => {
         persistenceSession?.saveCommand(state, committedAt, events, memories);
+        for (const event of events ?? []) {
+          if (
+            event.type === "care.burnout_started" ||
+            event.type === "care.burnout_recovered"
+          ) {
+            diagnosticLogger?.write(
+              "info",
+              event.type,
+              event.summary,
+              event.details,
+            );
+          }
+        }
       },
       resolveFurnitureBonuses(initialHomeLayout),
     );

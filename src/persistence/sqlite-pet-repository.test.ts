@@ -135,7 +135,7 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(7);
+    expect(version.user_version).toBe(8);
     migrated.close();
   });
 

@@ -37,7 +37,7 @@ import type { SettingsActivityRepository } from "./settings-activity-repository.
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -723,6 +723,10 @@ export class SqlitePetRepository
         // Relationship state remains schema-controlled JSON inside pet_runtime.
         // The version bump guarantees a verified backup before legacy saves
         // receive Affection, Bond, cooldown, cap, and milestone defaults.
+      }
+      if (fromVersion < 8) {
+        // Burnout exposure and recurrence protection remain schema-controlled
+        // JSON inside pet_runtime. Legacy saves receive neutral defaults.
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");
