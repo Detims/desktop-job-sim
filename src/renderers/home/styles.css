@@ -30,6 +30,7 @@ h1 { font-size: 25px; margin: 0; }
 .room-hint { background: rgb(15 12 20 / 90%); color: #aeb7c7; font-size: 12px; margin: 0; padding: 9px 14px; text-align: center; }
 
 #work-overlay { align-items: center; background: rgb(24 24 31 / 94%); border: 1px solid rgb(255 255 255 / 18%); border-radius: 999px; display: flex; font-size: 12px; gap: 9px; left: 50%; padding: 6px 7px 6px 13px; position: absolute; top: 12px; transform: translateX(-50%); }
+.burnout-banner { background: rgb(127 29 29 / 94%); border: 1px solid rgb(254 202 202 / 45%); border-radius: 8px; color: #fff7ed; font-size: 11px; left: 50%; line-height: 1.35; padding: 7px 10px; position: absolute; text-align: center; top: 54px; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); }
 
 #pet-stats-overlay { backdrop-filter: blur(12px); background: rgb(248 250 252 / 95%); border: 1px solid rgb(15 23 42 / 18%); border-radius: 12px; bottom: 50px; box-shadow: 0 8px 28px rgb(0 0 0 / 30%); color: #1e293b; left: 50%; padding: 10px 12px; position: absolute; transform: translateX(-50%); width: min(520px, calc(100% - 24px)); }
 .stats-heading { align-items: center; display: flex; font-size: 12px; gap: 10px; margin-bottom: 7px; }

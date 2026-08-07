@@ -1,6 +1,7 @@
 {
   "careerId": "core:clerk",
   "completionCareerXpBonus": 0,
+  "demanding": true,
   "durationMs": 20000,
   "id": "core:clerk:process-forms",
   "name": "Process Forms",

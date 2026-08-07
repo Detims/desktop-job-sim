@@ -1,0 +1,8 @@
+{
+  "durationMs": 600000,
+  "id": "core:burnout",
+  "name": "Burnout",
+  "positiveMoodMultiplier": 0.75,
+  "restEnergyMultiplier": 0.8,
+  "studyGainMultiplier": 0.75
+}

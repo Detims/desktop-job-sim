@@ -1,5 +1,6 @@
 {
   "durationMs": 20000,
+  "demanding": true,
   "id": "core:office-procedures",
   "knowledgeFieldId": "core:business-administration",
   "name": "Office Procedures",

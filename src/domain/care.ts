@@ -1,6 +1,7 @@
 import type { CareState, NeedState, PetState } from "../shared/pet-types.js";
 import { getCareItem } from "./care-items.js";
 import { applyRelationshipGain } from "./relationship.js";
+import { positiveMoodGain } from "./burnout.js";
 
 const HOUR_MS = 60 * 60 * 1_000;
 export const CRITICAL_NEED_GRACE_MS = 30 * 60 * 1_000;
@@ -240,7 +241,10 @@ export function comfortPet(state: PetState, now: number): PetState {
       comfortCooldownUntil: now + COMFORT_COOLDOWN_MS,
       stress: clamp(state.care.stress - 5),
     },
-    needs: { ...next.needs, mood: clamp(next.needs.mood + 5) },
+    needs: {
+      ...next.needs,
+      mood: clamp(next.needs.mood + positiveMoodGain(state, 5)),
+    },
     presentation: state.care.seriousIllness === null ? "petted" : "ill",
     presentationUntil: state.care.seriousIllness === null ? now + 900 : null,
     statusText: "Comforted.",

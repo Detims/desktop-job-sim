@@ -1,6 +1,7 @@
 {
   "careerId": "core:administrative-assistant",
   "completionCareerXpBonus": 0,
+  "demanding": true,
   "durationMs": 20000,
   "id": "core:administrative-assistant:schedule-coordination",
   "name": "Schedule Coordination",

@@ -2,6 +2,7 @@
   "id": "core:general-study",
   "name": "General Study",
   "durationMs": 15000,
+  "demanding": false,
   "knowledgeFieldId": "core:general",
   "rewardKnowledge": 10,
   "stressCost": 3,

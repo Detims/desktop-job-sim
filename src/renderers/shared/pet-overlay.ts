@@ -82,6 +82,7 @@ export async function initializePetOverlay(
   const hygieneStatus = requiredElement<HTMLElement>("#hygiene-status");
   const stressStatus = requiredElement<HTMLElement>("#stress-status");
   const illnessStatus = requiredElement<HTMLElement>("#illness-status");
+  const burnoutBanner = requiredElement<HTMLElement>("#burnout-banner");
   const walkButton = requiredElement<HTMLButtonElement>("#walk-button");
   const restButton = requiredElement<HTMLButtonElement>("#rest-button");
   const comfortButton = requiredElement<HTMLButtonElement>("#comfort-button");
@@ -118,6 +119,19 @@ export async function initializePetOverlay(
       illness === null
         ? ""
         : `Serious Illness · ${Math.max(0, Math.ceil((illness.recoverAt - Date.now()) / 1_000))}s`;
+    const burnout = state.conditions["core:burnout"];
+    burnoutBanner.hidden = burnout === undefined;
+    if (burnout !== undefined) {
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil((burnout.expiresAt - Date.now()) / 1_000),
+      );
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = String(remainingSeconds % 60).padStart(2, "0");
+      burnoutBanner.textContent =
+        `Burnout · ${minutes}:${seconds} · Study -25% · Rest energy -20% · ` +
+        "positive Mood -25%. Rest or Play speeds recovery.";
+    }
     shopWallet.textContent = `${state.household.wallet.toFixed(1)} coins`;
     walkButton.disabled =
       options.walkEnabled === false ||

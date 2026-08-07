@@ -1,6 +1,7 @@
 {
   "careerId": "core:clerk",
   "completionCareerXpBonus": 0,
+  "demanding": false,
   "durationMs": 15000,
   "id": "core:clerk:organize-mail",
   "name": "Organize Mail",

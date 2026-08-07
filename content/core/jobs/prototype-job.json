@@ -5,6 +5,7 @@
   "rewardCoins": 12,
   "rewardMastery": 5,
   "completionMasteryBonus": 2,
+  "demanding": false,
   "stressCost": 3,
   "needCosts": {
     "hunger": 2,

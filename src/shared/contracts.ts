@@ -63,6 +63,7 @@ export const HouseholdStateSchema = z.object({
 });
 
 export const CareStateSchema = z.object({
+  burnoutProtectedUntil: z.number().int().nonnegative(),
   comfortCooldownUntil: z.number().int().nonnegative(),
   criticalExposureMs: z.object({
     energy: z.number().nonnegative(),
@@ -71,6 +72,7 @@ export const CareStateSchema = z.object({
   }),
   health: z.number().min(0).max(100),
   hygiene: z.number().min(0).max(100),
+  overworkExposureMs: z.number().nonnegative(),
   recoveryProtectedUntil: z.number().int().nonnegative(),
   seriousIllness: z.object({
     medicineUsed: z.boolean(),
@@ -243,14 +245,19 @@ function normalizeLegacyPetState(input: unknown): unknown {
   return {
     ...state,
     activity: normalizedActivity,
-    care: state.care ?? {
+    care: {
+      burnoutProtectedUntil: 0,
       comfortCooldownUntil: 0,
       criticalExposureMs: { energy: 0, hunger: 0, thirst: 0 },
       health: 100,
       hygiene: 100,
+      overworkExposureMs: 0,
       recoveryProtectedUntil: 0,
       seriousIllness: null,
       stress: 0,
+      ...(typeof state.care === "object" && state.care !== null
+        ? state.care
+        : {}),
     },
     careers: state.careers ?? {},
     conditions: state.conditions ?? {},
@@ -336,6 +343,7 @@ export const PersistedPetRecordSchema = z.object({
 
 export const JobDefinitionSchema = z.object({
   completionMasteryBonus: z.number().nonnegative(),
+  demanding: z.boolean(),
   durationMs: z.number().positive(),
   id: z.string().min(1),
   name: z.string().min(1),
@@ -367,6 +375,7 @@ export const CareerDefinitionSchema = z.object({
 export const CareerJobDefinitionSchema = z.object({
   careerId: z.string().min(1),
   completionCareerXpBonus: z.number().nonnegative(),
+  demanding: z.boolean(),
   durationMs: z.number().positive(),
   id: z.string().min(1),
   name: z.string().min(1),
@@ -378,6 +387,7 @@ export const CareerJobDefinitionSchema = z.object({
 });
 
 export const StudyDefinitionSchema = z.object({
+  demanding: z.boolean(),
   durationMs: z.number().positive(),
   id: z.string().min(1),
   knowledgeFieldId: z.string().min(1),

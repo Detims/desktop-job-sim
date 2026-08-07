@@ -107,6 +107,50 @@ describe("pet-state recovery", () => {
     expect(recoverPetState(recovered.state, 120_000, 121_000, true).illnessRecovered).toBe(false);
   });
 
+  it("expires Burnout offline once without changing persisted exposure", () => {
+    const initial = createInitialPetState(0);
+    const persisted = {
+      ...initial,
+      care: { ...initial.care, overworkExposureMs: 60_000, stress: 80 },
+      conditions: {
+        "core:burnout": {
+          conditionId: "core:burnout",
+          expiresAt: 60_000,
+        },
+      },
+    };
+
+    const recovered = recoverPetState(persisted, 0, 120_000, true);
+
+    expect(recovered.burnoutRecovered).toBe(true);
+    expect(recovered.state.conditions["core:burnout"]).toBeUndefined();
+    expect(recovered.state.care.overworkExposureMs).toBe(0);
+    expect(recovered.state.care.burnoutProtectedUntil).toBe(420_000);
+    expect(
+      recoverPetState(recovered.state, 120_000, 121_000, true)
+        .burnoutRecovered,
+    ).toBe(false);
+  });
+
+  it("does not move Burnout timers backward when the wall clock rolls back", () => {
+    const initial = createInitialPetState(10_000);
+    const persisted = {
+      ...initial,
+      conditions: {
+        "core:burnout": {
+          conditionId: "core:burnout",
+          expiresAt: 20_000,
+        },
+      },
+    };
+
+    const recovered = recoverPetState(persisted, 10_000, 5_000, true);
+
+    expect(recovered.state.conditions["core:burnout"]?.expiresAt).toBe(20_000);
+    expect(recovered.state.updatedAt).toBe(10_000);
+    expect(recovered.burnoutRecovered).toBe(false);
+  });
+
   it("cancels a crashed job at its checkpoint without adding rewards", () => {
     const startedAt = 1_000;
     const working = startPrototypeJob(

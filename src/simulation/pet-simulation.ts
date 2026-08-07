@@ -39,6 +39,14 @@ import {
   applyAffectionElapsed,
   applyRelationshipGain,
 } from "../domain/relationship.js";
+import {
+  applyBurnoutExposure,
+  assertNotBurnedOutForDemandingActivity,
+  BURNOUT_DEFINITION,
+  isBurnedOut,
+  positiveMoodGain,
+  shortenBurnoutRecovery,
+} from "../domain/burnout.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
@@ -106,10 +114,12 @@ export function createInitialPetState(now: number): PetState {
   return {
     activity: null,
     care: {
+      burnoutProtectedUntil: 0,
       comfortCooldownUntil: 0,
       criticalExposureMs: { energy: 0, hunger: 0, thirst: 0 },
       health: 100,
       hygiene: 100,
+      overworkExposureMs: 0,
       recoveryProtectedUntil: 0,
       seriousIllness: null,
       stress: 0,
@@ -151,8 +161,10 @@ export function startCareerJob(
   now: number,
   jobId: string,
 ): PetState {
+  state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
   const definition = getCareerJobDefinition(jobId);
+  assertNotBurnedOutForDemandingActivity(state, definition.demanding);
   if (state.activity !== null) return state;
   if (!isCareerJobUnlocked(state, definition)) {
     throw new Error("That career job is still locked.");
@@ -183,7 +195,9 @@ export function startPrototypeJob(
   now: number,
   definition: JobDefinition = PROTOTYPE_JOB,
 ): PetState {
+  state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
+  assertNotBurnedOutForDemandingActivity(state, definition.demanding);
   if (state.activity !== null) return state;
 
   if (state.needs.energy < 10) {
@@ -213,7 +227,9 @@ export function startPrototypeStudy(
   bonuses: ActivityBonuses,
   definition: StudyDefinition = PROTOTYPE_STUDY,
 ): PetState {
+  state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
+  assertNotBurnedOutForDemandingActivity(state, definition.demanding);
   if (state.activity !== null) return state;
   if (state.needs.energy < 10) {
     return { ...state, statusText: "Too tired to study." };
@@ -254,6 +270,7 @@ export function startPrototypeRest(
   bonuses: ActivityBonuses,
   definition: RestDefinition = PROTOTYPE_REST,
 ): PetState {
+  state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
   if (state.activity !== null) return state;
   if (state.needs.energy >= 100) {
@@ -282,6 +299,7 @@ export function startPrototypePlay(
   now: number,
   definition: PlayDefinition = PROTOTYPE_PLAY,
 ): PetState {
+  state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
   if (state.activity !== null) return state;
   if (state.needs.energy < definition.energyCost) {
@@ -360,7 +378,9 @@ function advanceRest(
   );
   const activeBudgetMs = Math.min(elapsedMs, remainingActivityMs);
   const recoveryPerMs =
-    (definition.recoveryEnergy * activity.gainMultiplier) /
+    (definition.recoveryEnergy *
+      activity.gainMultiplier *
+      (isBurnedOut(state) ? BURNOUT_DEFINITION.restEnergyMultiplier : 1)) /
     activity.durationMs;
   const decayPerMs =
     (NEED_DECAY_PER_HOUR.energy * passiveNeedMultiplier) / HOUR_MS;
@@ -403,7 +423,7 @@ function advanceRest(
       : state.statusText,
     updatedAt: now,
   };
-  return applyCareElapsed(
+  const cared = applyCareElapsed(
     next,
     needs,
     elapsedMs,
@@ -411,6 +431,23 @@ function advanceRest(
     passiveNeedMultiplier,
     -definition.stressRecovery * (activeElapsedMs / activity.durationMs),
   );
+  return shortenBurnoutRecovery(
+    applyBurnoutExposure(cared, activeElapsedMs, now, "recovery"),
+    activeElapsedMs,
+    activity.durationMs,
+    now,
+  );
+}
+
+function elapsedAtOrAboveStressThreshold(
+  elapsedMs: number,
+  startStress: number,
+  endStress: number,
+  threshold: number,
+): number {
+  if (startStress >= threshold) return elapsedMs;
+  if (endStress < threshold || endStress <= startStress) return 0;
+  return elapsedMs * ((endStress - threshold) / (endStress - startStress));
 }
 
 export function advancePetState(
@@ -452,6 +489,8 @@ export function advancePetState(
   let presentation = state.presentation;
   let presentationUntil = state.presentationUntil;
   let statusText = state.statusText;
+  const activityAtTickStart = activity;
+  let activeElapsedForExposure = 0;
 
   if (
     presentationUntil !== null &&
@@ -465,6 +504,7 @@ export function advancePetState(
   if (activity !== null) {
     const remainingMs = Math.max(0, activity.durationMs - activity.accumulatedMs);
     const activeElapsedMs = Math.min(safeElapsedMs, remainingMs);
+    activeElapsedForExposure = activeElapsedMs;
     const nextAccumulatedMs = activity.accumulatedMs + activeElapsedMs;
     const progress = nextAccumulatedMs / activity.durationMs;
 
@@ -540,13 +580,17 @@ export function advancePetState(
       const targetBond = definition.bondGain * progress;
       const targetEnergyCost = definition.energyCost * progress;
       const targetMood = definition.moodGain * progress;
+      const moodGain = positiveMoodGain(
+        state,
+        targetMood - activity.creditedMood,
+      );
       const targetStressRecovery = definition.stressRecovery * progress;
       needs = {
         ...needs,
         energy: clampNeed(
           needs.energy - (targetEnergyCost - activity.creditedEnergyCost),
         ),
-        mood: clampNeed(needs.mood + (targetMood - activity.creditedMood)),
+        mood: clampNeed(needs.mood + moodGain),
       };
       stressDelta -= targetStressRecovery - activity.creditedStressRecovery;
       state = applyRelationshipGain(
@@ -565,7 +609,7 @@ export function advancePetState(
           creditedAffection: targetAffection,
           creditedBond: targetBond,
           creditedEnergyCost: targetEnergyCost,
-          creditedMood: targetMood,
+          creditedMood: activity.creditedMood + moodGain,
           creditedStressRecovery: targetStressRecovery,
         };
       }
@@ -574,8 +618,11 @@ export function advancePetState(
         activity.definitionId === studyDefinition.id
           ? studyDefinition
           : getStudyDefinition(activity.definitionId);
-      const targetKnowledge =
-        resolvedStudyDefinition.rewardKnowledge * activity.gainMultiplier * progress;
+      const knowledgeGain =
+        resolvedStudyDefinition.rewardKnowledge *
+        activity.gainMultiplier *
+        (activeElapsedMs / activity.durationMs) *
+        (isBurnedOut(state) ? BURNOUT_DEFINITION.studyGainMultiplier : 1);
       needs = applyNeedDelta(
         needs,
         resolvedStudyDefinition.needCosts,
@@ -585,8 +632,7 @@ export function advancePetState(
         ...knowledge,
         [activity.knowledgeFieldId]:
           (knowledge[activity.knowledgeFieldId] ?? 0) +
-          targetKnowledge -
-          activity.creditedKnowledge,
+          knowledgeGain,
       };
       stressDelta += resolvedStudyDefinition.stressCost * (activeElapsedMs / activity.durationMs);
       if (nextAccumulatedMs >= activity.durationMs) {
@@ -596,7 +642,7 @@ export function advancePetState(
         activity = {
           ...activity,
           accumulatedMs: nextAccumulatedMs,
-          creditedKnowledge: targetKnowledge,
+          creditedKnowledge: activity.creditedKnowledge + knowledgeGain,
         };
       }
     }
@@ -609,7 +655,7 @@ export function advancePetState(
     }
   }
 
-  const next = applyCareElapsed({
+  let next = applyCareElapsed({
     ...state,
     activity,
     careers,
@@ -622,6 +668,53 @@ export function advancePetState(
     statusText,
     updatedAt: now,
   }, needs, safeElapsedMs, now, passiveNeedMultiplier, stressDelta);
+  const exposureMode =
+    activityAtTickStart?.type === "play"
+      ? "recovery"
+      : activityAtTickStart?.type === "job" ||
+          activityAtTickStart?.type === "careerJob" ||
+          activityAtTickStart?.type === "study"
+        ? "work"
+        : "none";
+  const hadBurnout = isBurnedOut(next);
+  const exposureElapsedMs =
+    exposureMode === "work"
+      ? elapsedAtOrAboveStressThreshold(
+          activeElapsedForExposure,
+          state.care.stress,
+          next.care.stress,
+          75,
+        )
+      : activeElapsedForExposure;
+  next = applyBurnoutExposure(next, exposureElapsedMs, now, exposureMode);
+  if (
+    !hadBurnout &&
+    isBurnedOut(next) &&
+    activityAtTickStart !== null &&
+    activityAtTickStart.type !== "play"
+  ) {
+    const demanding =
+      activityAtTickStart.type === "job"
+        ? jobDefinition.demanding
+        : activityAtTickStart.type === "careerJob"
+          ? getCareerJobDefinition(activityAtTickStart.definitionId).demanding
+          : getStudyDefinition(activityAtTickStart.definitionId).demanding;
+    if (demanding && next.activity !== null) {
+      next = cancelActiveActivity(next);
+      next = {
+        ...next,
+        statusText: "Burnout stopped the demanding activity. Partial progress kept.",
+      };
+    }
+  }
+  if (activityAtTickStart?.type === "play") {
+    next = shortenBurnoutRecovery(
+      next,
+      activeElapsedForExposure,
+      activityAtTickStart.durationMs,
+      now,
+    );
+  }
   return reconcileCareerProgression(
     applyAffectionElapsed(next, safeElapsedMs, passiveNeedMultiplier),
     now,

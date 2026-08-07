@@ -61,6 +61,8 @@ export const MeaningfulEventTypeSchema = z.enum([
   "care.comforted",
   "care.serious_illness",
   "care.recovered",
+  "care.burnout_started",
+  "care.burnout_recovered",
   "relationship.comforted",
   "relationship.gifted",
   "relationship.petted",
