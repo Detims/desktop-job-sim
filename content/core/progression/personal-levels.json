@@ -1,0 +1,5 @@
+[
+  { "level": 1, "requiredXp": 0 },
+  { "level": 2, "requiredXp": 50 },
+  { "level": 3, "requiredXp": 150 }
+]

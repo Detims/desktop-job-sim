@@ -1,0 +1,18 @@
+{
+  "id": "core:data-entry-shift",
+  "name": "Data Entry Shift",
+  "durationMs": 20000,
+  "rewardCoins": 18,
+  "rewardGeneralXp": 15,
+  "rewardMastery": 8,
+  "completionMasteryBonus": 0,
+  "demanding": true,
+  "requiredLevel": 2,
+  "stressCost": 4,
+  "needCosts": {
+    "hunger": 2,
+    "thirst": 3,
+    "mood": 2,
+    "energy": 10
+  }
+}

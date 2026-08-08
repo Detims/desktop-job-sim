@@ -50,12 +50,14 @@ export type CareItemAction = "clean" | "drink" | "feed" | "gift" | "medicine";
 
 export interface CareItemDefinition {
   action: CareItemAction;
+  generalXpReward: number;
   id: string;
   name: string;
   price: number;
   relationshipAffection: number;
   relationshipBond: number;
   requiredBond: number;
+  requiredLevel: number;
   restoreAmount: number;
 }
 
@@ -106,6 +108,7 @@ export type Presentation =
 
 interface ActiveActivityBase {
   accumulatedMs: number;
+  creditedGeneralXp: number;
   definitionId: string;
   durationMs: number;
   startedAt: number;
@@ -159,6 +162,7 @@ export interface PetState {
   careers: CareerState;
   conditions: ConditionState;
   examCooldowns: ExamCooldownState;
+  generalXp: number;
   household: HouseholdState;
   knowledge: KnowledgeState;
   mastery: number;
@@ -224,7 +228,9 @@ export interface JobDefinition {
   id: string;
   name: string;
   needCosts: NeedState;
+  requiredLevel: number;
   rewardCoins: number;
+  rewardGeneralXp: number;
   rewardMastery: number;
   stressCost: number;
 }
@@ -259,6 +265,7 @@ export interface CareerJobDefinition {
   requiredRankId: string;
   rewardCareerXp: number;
   rewardCoins: number;
+  rewardGeneralXp: number;
   stressCost: number;
 }
 
@@ -270,6 +277,7 @@ export interface StudyDefinition {
   name: string;
   needCosts: NeedState;
   rewardKnowledge: number;
+  rewardGeneralXp: number;
   stressCost: number;
 }
 
@@ -302,6 +310,7 @@ export interface RestDefinition {
   id: string;
   name: string;
   recoveryEnergy: number;
+  rewardGeneralXp: number;
   stressRecovery: number;
 }
 
@@ -313,7 +322,13 @@ export interface PlayDefinition {
   id: string;
   moodGain: number;
   name: string;
+  rewardGeneralXp: number;
   stressRecovery: number;
+}
+
+export interface PersonalLevelDefinition {
+  level: number;
+  requiredXp: number;
 }
 
 export type ManagementTab = "work" | "careers" | "memories";

@@ -3,5 +3,7 @@
   "name": "Soap",
   "price": 4,
   "action": "clean",
+  "generalXpReward": 1,
+  "requiredLevel": 1,
   "restoreAmount": 100
 }

@@ -127,6 +127,7 @@ export function createInitialPetState(now: number): PetState {
     careers: {},
     conditions: {},
     examCooldowns: {},
+    generalXp: 0,
     household: { inventory: {}, wallet: 0 },
     knowledge: { "core:general": 0 },
     mastery: 0,
@@ -179,6 +180,7 @@ export function startCareerJob(
       careerId: definition.careerId,
       creditedCareerXp: 0,
       creditedCoins: 0,
+      creditedGeneralXp: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
       startedAt: now,
@@ -209,6 +211,7 @@ export function startPrototypeJob(
     activity: {
       accumulatedMs: 0,
       creditedCoins: 0,
+      creditedGeneralXp: 0,
       creditedMastery: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
@@ -239,6 +242,7 @@ export function startPrototypeStudy(
     ...state,
     activity: {
       accumulatedMs: 0,
+      creditedGeneralXp: 0,
       creditedKnowledge: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
@@ -282,6 +286,7 @@ export function startPrototypeRest(
     activity: {
       accumulatedMs: 0,
       creditedEnergy: 0,
+      creditedGeneralXp: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
       gainMultiplier: 1 + boundedBonus(bonuses.restRecovery),
@@ -312,6 +317,7 @@ export function startPrototypePlay(
       creditedAffection: 0,
       creditedBond: 0,
       creditedEnergyCost: 0,
+      creditedGeneralXp: 0,
       creditedMood: 0,
       creditedStressRecovery: 0,
       definitionId: definition.id,

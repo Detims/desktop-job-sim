@@ -9,5 +9,6 @@
   "requiredRankId": "core:clerk:senior",
   "rewardCareerXp": 20,
   "rewardCoins": 30,
+  "rewardGeneralXp": 15,
   "stressCost": 6
 }

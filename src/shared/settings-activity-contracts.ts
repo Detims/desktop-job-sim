@@ -43,6 +43,7 @@ export const UpdateSettingsCommandSchema = z.object({
 });
 
 export const MeaningfulEventTypeSchema = z.enum([
+  "progression.level_up",
   "activity.started",
   "activity.completed",
   "activity.cancelled",

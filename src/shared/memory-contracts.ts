@@ -3,6 +3,7 @@ import { z } from "zod";
 export const MemoryCategorySchema = z.enum([
   "career",
   "illness",
+  "personal-growth",
   "qualification",
   "relationship",
 ]);

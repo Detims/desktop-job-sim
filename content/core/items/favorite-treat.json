@@ -3,6 +3,8 @@
   "name": "Favorite Treat",
   "action": "gift",
   "price": 15,
+  "generalXpReward": 1,
+  "requiredLevel": 1,
   "restoreAmount": 0,
   "relationshipAffection": 12,
   "relationshipBond": 1,

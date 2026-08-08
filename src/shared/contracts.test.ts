@@ -10,6 +10,7 @@ describe("pet-state contracts", () => {
     delete legacy.care;
     delete legacy.conditions;
     delete legacy.examCooldowns;
+    delete legacy.generalXp;
     delete legacy.knowledge;
     delete legacy.household;
     delete legacy.qualifications;
@@ -30,10 +31,14 @@ describe("pet-state contracts", () => {
     expect(parsed.care).toEqual(expect.objectContaining({ health: 100, hygiene: 100, stress: 0 }));
     expect(parsed.conditions).toEqual({});
     expect(parsed.examCooldowns).toEqual({});
+    expect(parsed.generalXp).toBe(0);
     expect(parsed.knowledge).toEqual({ "core:general": 0 });
     expect(parsed.household).toEqual({ inventory: {}, wallet: 27 });
     expect(parsed.qualifications).toEqual({});
     expect(parsed.relationship).toEqual(expect.objectContaining({ affection: 50, bond: 0 }));
-    expect(parsed.activity).toEqual(expect.objectContaining({ type: "job" }));
+    expect(parsed.activity).toEqual(expect.objectContaining({
+      creditedGeneralXp: 0,
+      type: "job",
+    }));
   });
 });

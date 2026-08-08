@@ -5,6 +5,7 @@
   "demanding": false,
   "knowledgeFieldId": "core:general",
   "rewardKnowledge": 10,
+  "rewardGeneralXp": 10,
   "stressCost": 3,
   "needCosts": {
     "hunger": 0,

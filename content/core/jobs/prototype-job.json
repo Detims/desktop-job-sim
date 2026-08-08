@@ -1,8 +1,10 @@
 {
   "id": "core:prototype-desk-job",
   "name": "Sort Tiny Files",
+  "requiredLevel": 1,
   "durationMs": 15000,
   "rewardCoins": 12,
+  "rewardGeneralXp": 10,
   "rewardMastery": 5,
   "completionMasteryBonus": 2,
   "demanding": false,

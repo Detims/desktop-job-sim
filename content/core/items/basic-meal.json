@@ -3,5 +3,7 @@
   "name": "Basic Meal",
   "price": 5,
   "action": "feed",
+  "generalXpReward": 1,
+  "requiredLevel": 1,
   "restoreAmount": 25
 }

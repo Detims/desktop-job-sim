@@ -33,6 +33,7 @@ export type {
   PersistedPetRecord,
   PetSnapshot,
   PetState,
+  PersonalLevelDefinition,
   PlayDefinition,
   Presentation,
   QualificationProgress,
@@ -106,6 +107,7 @@ export const PresentationSchema = z.enum([
 
 export const ActiveJobSchema = z.object({
   accumulatedMs: z.number().nonnegative(),
+  creditedGeneralXp: z.number().nonnegative(),
   creditedCoins: z.number().nonnegative(),
   creditedMastery: z.number().nonnegative(),
   definitionId: z.string().min(1),
@@ -116,6 +118,7 @@ export const ActiveJobSchema = z.object({
 
 export const ActiveCareerJobSchema = z.object({
   accumulatedMs: z.number().nonnegative(),
+  creditedGeneralXp: z.number().nonnegative(),
   careerId: z.string().min(1),
   creditedCareerXp: z.number().nonnegative(),
   creditedCoins: z.number().nonnegative(),
@@ -127,6 +130,7 @@ export const ActiveCareerJobSchema = z.object({
 
 export const ActiveStudySchema = z.object({
   accumulatedMs: z.number().nonnegative(),
+  creditedGeneralXp: z.number().nonnegative(),
   creditedKnowledge: z.number().nonnegative(),
   definitionId: z.string().min(1),
   durationMs: z.number().positive(),
@@ -138,6 +142,7 @@ export const ActiveStudySchema = z.object({
 
 export const ActiveRestSchema = z.object({
   accumulatedMs: z.number().nonnegative(),
+  creditedGeneralXp: z.number().nonnegative(),
   creditedEnergy: z.number().nonnegative(),
   definitionId: z.string().min(1),
   durationMs: z.number().positive(),
@@ -148,6 +153,7 @@ export const ActiveRestSchema = z.object({
 
 export const ActivePlaySchema = z.object({
   accumulatedMs: z.number().nonnegative(),
+  creditedGeneralXp: z.number().nonnegative(),
   creditedAffection: z.number().nonnegative(),
   creditedBond: z.number().nonnegative(),
   creditedEnergyCost: z.number().nonnegative(),
@@ -212,6 +218,7 @@ const CanonicalPetStateSchema = z.object({
   careers: CareerStateSchema,
   conditions: ConditionStateSchema,
   examCooldowns: ExamCooldownStateSchema,
+  generalXp: z.number().nonnegative(),
   household: HouseholdStateSchema,
   knowledge: KnowledgeStateSchema,
   mastery: z.number().nonnegative(),
@@ -239,8 +246,12 @@ function normalizeLegacyPetState(input: unknown): unknown {
     activity !== null &&
     !Array.isArray(activity) &&
     !("type" in activity)
-      ? { ...activity, type: "job" }
-      : activity;
+      ? { creditedGeneralXp: 0, ...activity, type: "job" }
+      : typeof activity === "object" &&
+          activity !== null &&
+          !Array.isArray(activity)
+        ? { creditedGeneralXp: 0, ...activity }
+        : activity;
 
   return {
     ...state,
@@ -262,6 +273,7 @@ function normalizeLegacyPetState(input: unknown): unknown {
     careers: state.careers ?? {},
     conditions: state.conditions ?? {},
     examCooldowns: state.examCooldowns ?? {},
+    generalXp: state.generalXp ?? 0,
     household: state.household ?? {
       inventory: {},
       wallet: typeof state.wallet === "number" ? state.wallet : 0,
@@ -320,12 +332,14 @@ export const PetCommandSchema = z.discriminatedUnion("type", [
 
 export const CareItemDefinitionSchema = z.object({
   action: z.enum(["clean", "drink", "feed", "gift", "medicine"]),
+  generalXpReward: z.number().nonnegative(),
   id: z.string().min(1),
   name: z.string().min(1),
   price: z.number().nonnegative(),
   relationshipAffection: z.number().min(0).max(100).default(0),
   relationshipBond: z.number().min(0).max(100).default(0),
   requiredBond: z.number().min(0).max(100).default(0),
+  requiredLevel: z.number().int().positive(),
   restoreAmount: z.number().min(0).max(100),
 });
 
@@ -348,7 +362,9 @@ export const JobDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   needCosts: NeedStateSchema,
+  requiredLevel: z.number().int().positive(),
   rewardCoins: z.number().nonnegative(),
+  rewardGeneralXp: z.number().nonnegative(),
   rewardMastery: z.number().nonnegative(),
   stressCost: z.number().nonnegative(),
 });
@@ -383,6 +399,7 @@ export const CareerJobDefinitionSchema = z.object({
   requiredRankId: z.string().min(1),
   rewardCareerXp: z.number().nonnegative(),
   rewardCoins: z.number().nonnegative(),
+  rewardGeneralXp: z.number().nonnegative(),
   stressCost: z.number().nonnegative(),
 });
 
@@ -394,6 +411,7 @@ export const StudyDefinitionSchema = z.object({
   name: z.string().min(1),
   needCosts: NeedStateSchema,
   rewardKnowledge: z.number().nonnegative(),
+  rewardGeneralXp: z.number().nonnegative(),
   stressCost: z.number().nonnegative(),
 });
 
@@ -431,6 +449,7 @@ export const RestDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   recoveryEnergy: z.number().positive(),
+  rewardGeneralXp: z.number().nonnegative(),
   stressRecovery: z.number().nonnegative(),
 });
 
@@ -442,5 +461,11 @@ export const PlayDefinitionSchema = z.object({
   id: z.string().min(1),
   moodGain: z.number().nonnegative(),
   name: z.string().min(1),
+  rewardGeneralXp: z.number().nonnegative(),
   stressRecovery: z.number().nonnegative(),
+});
+
+export const PersonalLevelDefinitionSchema = z.object({
+  level: z.number().int().positive(),
+  requiredXp: z.number().nonnegative(),
 });
