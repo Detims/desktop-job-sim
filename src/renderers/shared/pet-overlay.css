@@ -15,6 +15,34 @@
   min-height: 100%;
 }
 
+#pet-stats-overlay .growth-summary {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(105px, auto) 1fr;
+  margin-bottom: 6px;
+}
+
+#pet-stats-overlay .growth-summary > div {
+  display: grid;
+  line-height: 1.15;
+}
+
+#pet-stats-overlay .growth-summary strong {
+  color: #0284c7;
+  font-size: 11px;
+}
+
+#pet-stats-overlay .growth-summary span {
+  color: #64748b;
+  font-size: 8px;
+}
+
+#pet-stats-overlay #general-xp-progress {
+  height: 8px;
+  width: 100%;
+}
+
 #pet-stats-overlay .overlay-tabs {
   border-top: 1px solid rgb(51 65 85 / 16%);
   display: flex;
