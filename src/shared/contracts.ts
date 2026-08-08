@@ -321,7 +321,7 @@ export const PetCommandSchema = z.discriminatedUnion("type", [
   z.object({ itemId: z.string().min(1), type: z.literal("purchaseItem") }),
   z.object({ careerId: z.string().min(1), type: z.literal("promoteCareer") }),
   z.object({ jobId: z.string().min(1), type: z.literal("startCareerJob") }),
-  z.object({ type: z.literal("startJob") }),
+  z.object({ jobId: z.string().min(1).optional(), type: z.literal("startJob") }),
   z.object({ type: z.literal("startPlay") }),
   z.object({ type: z.literal("startRest") }),
   z.object({ studyId: z.string().min(1).optional(), type: z.literal("startStudy") }),

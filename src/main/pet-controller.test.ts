@@ -45,6 +45,7 @@ describe("PetController", () => {
     ).rejects.toThrow("disk unavailable");
     expect(controller.getSnapshot().state.stateVersion).toBe(0);
     expect(controller.getSnapshot().state.needs.mood).toBe(90);
+    expect(controller.getSnapshot().state.generalXp).toBe(0);
   });
 
   it("does not expose a household purchase when its durable commit fails", async () => {
@@ -80,10 +81,48 @@ describe("PetController", () => {
 
     expect(controller.getSnapshot().state.household.wallet).toBe(7);
     expect(controller.getSnapshot().state.needs.thirst).toBe(90);
+    expect(controller.getSnapshot().state.generalXp).toBe(1);
     expect(events.map((event) => event.type)).toEqual([
       "care.item_purchased",
       "care.item_used",
     ]);
+  });
+
+  it("durably records a level transition and Growing Up Memory exactly once", async () => {
+    const base = new PetController(1_000).getSnapshot().state;
+    const events: MeaningfulEventDraft[] = [];
+    const memories: MemoryEntryDraft[] = [];
+    const controller = new PetController(
+      { ...base, generalXp: 49 },
+      (_state, _now, drafts = [], memoryDrafts = []) => {
+        events.push(...drafts);
+        memories.push(...memoryDrafts);
+      },
+    );
+
+    await controller.dispatch({ type: "pet" }, 2_000);
+    controller.tick(1_000, 3_000);
+
+    expect(controller.getSnapshot().state.generalXp).toBe(50);
+    expect(events.filter(({ type }) => type === "progression.level_up")).toEqual([
+      expect.objectContaining({
+        details: expect.objectContaining({ level: 2, requiredXp: 50 }),
+      }),
+    ]);
+    expect(memories).toEqual([
+      expect.objectContaining({ category: "personal-growth", title: "Growing Up" }),
+    ]);
+  });
+
+  it("does not award General XP for a rejected intentional action", async () => {
+    const controller = new PetController(1_000);
+    await controller.dispatch({ type: "pet" }, 2_000);
+
+    await expect(controller.dispatch({ type: "pet" }, 2_001)).rejects.toThrow(
+      "cooldown",
+    );
+
+    expect(controller.getSnapshot().state.generalXp).toBe(1);
   });
 
   it("commits one permanent Memory when Serious Illness recovers", () => {

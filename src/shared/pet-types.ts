@@ -201,7 +201,7 @@ export type PetCommand =
   | { itemId: string; type: "purchaseItem" }
   | { careerId: string; type: "promoteCareer" }
   | { jobId: string; type: "startCareerJob" }
-  | { type: "startJob" }
+  | { jobId?: string | undefined; type: "startJob" }
   | { type: "startPlay" }
   | { type: "startRest" }
   | { studyId?: string | undefined; type: "startStudy" }

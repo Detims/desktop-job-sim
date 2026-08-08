@@ -4,6 +4,7 @@ import {
   advancePetState,
   cancelActiveActivity,
   createInitialPetState,
+  DATA_ENTRY_JOB,
   PROTOTYPE_REST,
   PROTOTYPE_STUDY,
   PROTOTYPE_JOB,
@@ -12,6 +13,7 @@ import {
   startPrototypePlay,
   startPrototypeRest,
   startPrototypeStudy,
+  startJob,
   startStudy,
   startCareerJob,
 } from "./pet-simulation.js";
@@ -46,6 +48,7 @@ describe("pet simulation", () => {
     expect(halfway.household.wallet).toBeCloseTo(5);
     expect(halfway.careers[CLERK_CAREER.id]?.mastery).toBeCloseTo(5);
     expect(halfway.mastery).toBe(0);
+    expect(halfway.generalXp).toBeCloseTo(CLERK_JOBS[0]!.rewardGeneralXp / 2);
     expect(cancelActiveActivity(halfway).careers[CLERK_CAREER.id]?.mastery)
       .toBeCloseTo(5);
   });
@@ -72,6 +75,7 @@ describe("pet simulation", () => {
 
     expect(manyTicks.household.wallet).toBeCloseTo(oneTick.household.wallet, 8);
     expect(manyTicks.mastery).toBeCloseTo(oneTick.mastery, 8);
+    expect(manyTicks.generalXp).toBeCloseTo(oneTick.generalXp, 8);
     expect(manyTicks.needs.energy).toBeCloseTo(oneTick.needs.energy, 8);
     expect(manyTicks.needs.hunger).toBeCloseTo(oneTick.needs.hunger, 8);
     expect(manyTicks.needs.mood).toBeCloseTo(oneTick.needs.mood, 8);
@@ -98,9 +102,48 @@ describe("pet simulation", () => {
 
     expect(cancelled.household.wallet).toBeCloseTo(PROTOTYPE_JOB.rewardCoins / 2);
     expect(cancelled.mastery).toBeCloseTo(PROTOTYPE_JOB.rewardMastery / 2);
+    expect(cancelled.generalXp).toBeCloseTo(PROTOTYPE_JOB.rewardGeneralXp / 2);
     expect(later.household.wallet).toBeCloseTo(cancelled.household.wallet);
     expect(later.mastery).toBeCloseTo(cancelled.mastery);
     expect(later.activity).toBeNull();
+  });
+
+  it("keeps General XP neutral to study modifiers", () => {
+    const initial = {
+      ...createInitialPetState(0),
+      needs: { ...createInitialPetState(0).needs, mood: 50 },
+    };
+    const withoutDesk = advancePetState(
+      startPrototypeStudy(initial, 0, NO_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+    const withDesk = advancePetState(
+      startPrototypeStudy(initial, 0, FURNITURE_BONUSES),
+      PROTOTYPE_STUDY.durationMs,
+      PROTOTYPE_STUDY.durationMs,
+    );
+
+    expect(withoutDesk.generalXp).toBe(PROTOTYPE_STUDY.rewardGeneralXp);
+    expect(withDesk.generalXp).toBe(PROTOTYPE_STUDY.rewardGeneralXp);
+  });
+
+  it("gates Data Entry at Level 2 and awards its configured rewards", () => {
+    const levelOne = createInitialPetState(0);
+    expect(() => startJob(levelOne, 0, DATA_ENTRY_JOB.id)).toThrow(
+      "requires Level 2",
+    );
+
+    const levelTwo = { ...levelOne, generalXp: 50 };
+    const halfway = advancePetState(
+      startJob(levelTwo, 0, DATA_ENTRY_JOB.id),
+      DATA_ENTRY_JOB.durationMs / 2,
+      DATA_ENTRY_JOB.durationMs / 2,
+    );
+
+    expect(halfway.generalXp).toBeCloseTo(50 + DATA_ENTRY_JOB.rewardGeneralXp / 2);
+    expect(halfway.household.wallet).toBeCloseTo(DATA_ENTRY_JOB.rewardCoins / 2);
+    expect(halfway.mastery).toBeCloseTo(DATA_ENTRY_JOB.rewardMastery / 2);
   });
 
   it("settles proportional work before Serious Illness interrupts it", () => {
@@ -276,6 +319,8 @@ describe("pet simulation", () => {
     expect(rested.statusText).toBe("Fully rested.");
     expect(rested.needs.energy).toBeGreaterThan(99.99);
     expect(rested.needs.energy).toBeLessThanOrEqual(100);
+    expect(rested.generalXp).toBeGreaterThan(0);
+    expect(rested.generalXp).toBeLessThan(PROTOTYPE_REST.rewardGeneralXp);
   });
 
   it("keeps proportional study and rest gains after cancellation", () => {
@@ -318,6 +363,7 @@ describe("pet simulation", () => {
     expect(cancelled.needs.mood).toBeCloseTo(54 - 0.5 / 120);
     expect(cancelled.needs.energy).toBeCloseTo(85.5 - 0.5 / 80);
     expect(cancelled.care.stress).toBeCloseTo(25);
+    expect(cancelled.generalXp).toBeCloseTo(PROTOTYPE_PLAY.rewardGeneralXp / 2);
     expect(cancelled.activity).toBeNull();
 
     let stepped = startPrototypePlay(initial, 0);

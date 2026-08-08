@@ -852,7 +852,8 @@ app.whenReady().then(() => {
         for (const event of events ?? []) {
           if (
             event.type === "care.burnout_started" ||
-            event.type === "care.burnout_recovered"
+            event.type === "care.burnout_recovered" ||
+            event.type === "progression.level_up"
           ) {
             diagnosticLogger?.write(
               "info",

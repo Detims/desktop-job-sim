@@ -2,6 +2,7 @@ import type { CareState, NeedState, PetState } from "../shared/pet-types.js";
 import { getCareItem } from "./care-items.js";
 import { applyRelationshipGain } from "./relationship.js";
 import { positiveMoodGain } from "./burnout.js";
+import { assertRequiredLevel } from "./personal-growth.js";
 
 const HOUR_MS = 60 * 60 * 1_000;
 export const CRITICAL_NEED_GRACE_MS = 30 * 60 * 1_000;
@@ -153,6 +154,7 @@ export function applyCareElapsed(
 
 export function purchaseCareItem(state: PetState, itemId: string): PetState {
   const item = getCareItem(itemId);
+  assertRequiredLevel(state, item.requiredLevel, item.name);
   if (state.relationship.bond < item.requiredBond) {
     throw new Error(`${item.name} requires Bond ${item.requiredBond}.`);
   }
