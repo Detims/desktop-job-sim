@@ -3,5 +3,6 @@
   "name": "Rest",
   "durationMs": 15000,
   "recoveryEnergy": 15,
+  "rewardGeneralXp": 5,
   "stressRecovery": 8
 }

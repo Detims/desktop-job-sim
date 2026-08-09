@@ -1,6 +1,9 @@
 import rawPrototypeJob from "../../content/core/jobs/prototype-job.json" with {
   type: "json",
 };
+import rawDataEntryJob from "../../content/core/jobs/data-entry-shift.json" with {
+  type: "json",
+};
 import rawRest from "../../content/core/activities/rest.json" with {
   type: "json",
 };
@@ -47,11 +50,21 @@ import {
   positiveMoodGain,
   shortenBurnoutRecovery,
 } from "../domain/burnout.js";
+import { assertRequiredLevel } from "../domain/personal-growth.js";
 
 export const PROTOTYPE_JOB = JobDefinitionSchema.parse(rawPrototypeJob);
+export const DATA_ENTRY_JOB = JobDefinitionSchema.parse(rawDataEntryJob);
+export const GENERAL_JOBS = Object.freeze([PROTOTYPE_JOB, DATA_ENTRY_JOB]);
+const GENERAL_JOBS_BY_ID = new Map(GENERAL_JOBS.map((job) => [job.id, job]));
 export const PROTOTYPE_REST = RestDefinitionSchema.parse(rawRest);
 export const PROTOTYPE_PLAY = PlayDefinitionSchema.parse(rawPlay);
 export const PROTOTYPE_STUDY = getStudyDefinition("core:general-study");
+
+export function getGeneralJobDefinition(jobId: string): JobDefinition {
+  const definition = GENERAL_JOBS_BY_ID.get(jobId);
+  if (definition === undefined) throw new Error("That general job is unavailable.");
+  return definition;
+}
 
 export const NEED_DECAY_PER_HOUR: Readonly<NeedState> = Object.freeze({
   energy: 1.5,
@@ -107,7 +120,7 @@ export function activityDisplayName(activity: ActiveActivity): string {
   if (activity.type === "careerJob") {
     return getCareerJobDefinition(activity.definitionId).name;
   }
-  return PROTOTYPE_JOB.name;
+  return getGeneralJobDefinition(activity.definitionId).name;
 }
 
 export function createInitialPetState(now: number): PetState {
@@ -127,6 +140,7 @@ export function createInitialPetState(now: number): PetState {
     careers: {},
     conditions: {},
     examCooldowns: {},
+    generalXp: 0,
     household: { inventory: {}, wallet: 0 },
     knowledge: { "core:general": 0 },
     mastery: 0,
@@ -179,6 +193,7 @@ export function startCareerJob(
       careerId: definition.careerId,
       creditedCareerXp: 0,
       creditedCoins: 0,
+      creditedGeneralXp: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
       startedAt: now,
@@ -198,6 +213,7 @@ export function startPrototypeJob(
   state = applyBurnoutExposure(state, 0, now, "none");
   assertSafeForMajorActivity(state);
   assertNotBurnedOutForDemandingActivity(state, definition.demanding);
+  assertRequiredLevel(state, definition.requiredLevel, definition.name);
   if (state.activity !== null) return state;
 
   if (state.needs.energy < 10) {
@@ -209,6 +225,7 @@ export function startPrototypeJob(
     activity: {
       accumulatedMs: 0,
       creditedCoins: 0,
+      creditedGeneralXp: 0,
       creditedMastery: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
@@ -219,6 +236,14 @@ export function startPrototypeJob(
     presentationUntil: null,
     statusText: `Working: ${definition.name}`,
   };
+}
+
+export function startJob(
+  state: PetState,
+  now: number,
+  jobId = PROTOTYPE_JOB.id,
+): PetState {
+  return startPrototypeJob(state, now, getGeneralJobDefinition(jobId));
 }
 
 export function startPrototypeStudy(
@@ -239,6 +264,7 @@ export function startPrototypeStudy(
     ...state,
     activity: {
       accumulatedMs: 0,
+      creditedGeneralXp: 0,
       creditedKnowledge: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
@@ -282,6 +308,7 @@ export function startPrototypeRest(
     activity: {
       accumulatedMs: 0,
       creditedEnergy: 0,
+      creditedGeneralXp: 0,
       definitionId: definition.id,
       durationMs: definition.durationMs,
       gainMultiplier: 1 + boundedBonus(bonuses.restRecovery),
@@ -312,6 +339,7 @@ export function startPrototypePlay(
       creditedAffection: 0,
       creditedBond: 0,
       creditedEnergyCost: 0,
+      creditedGeneralXp: 0,
       creditedMood: 0,
       creditedStressRecovery: 0,
       definitionId: definition.id,
@@ -394,6 +422,8 @@ function advanceRest(
   const nextAccumulatedMs = activity.accumulatedMs + activeElapsedMs;
   const completed = reachedFull || nextAccumulatedMs >= activity.durationMs;
   const grossRecovery = recoveryPerMs * activeElapsedMs;
+  const targetGeneralXp =
+    definition.rewardGeneralXp * (nextAccumulatedMs / activity.durationMs);
   const needsAfterDecay = applyNeedDelta(
     state.needs,
     NEED_DECAY_PER_HOUR,
@@ -412,7 +442,10 @@ function advanceRest(
           ...activity,
           accumulatedMs: nextAccumulatedMs,
           creditedEnergy: activity.creditedEnergy + grossRecovery,
+          creditedGeneralXp: targetGeneralXp,
         },
+    generalXp:
+      state.generalXp + targetGeneralXp - activity.creditedGeneralXp,
     needs,
     presentation: completed ? "idle" : state.presentation,
     presentationUntil: completed ? null : state.presentationUntil,
@@ -482,6 +515,7 @@ export function advancePetState(
   );
   let activity = state.activity;
   let careers = state.careers;
+  let generalXp = state.generalXp;
   let knowledge = state.knowledge;
   let mastery = state.mastery;
   let wallet = state.household.wallet;
@@ -509,25 +543,32 @@ export function advancePetState(
     const progress = nextAccumulatedMs / activity.durationMs;
 
     if (activity.type === "job") {
-      const targetCoins = jobDefinition.rewardCoins * progress;
-      const targetMastery = jobDefinition.rewardMastery * progress;
+      const resolvedJobDefinition =
+        activity.definitionId === jobDefinition.id
+          ? jobDefinition
+          : getGeneralJobDefinition(activity.definitionId);
+      const targetCoins = resolvedJobDefinition.rewardCoins * progress;
+      const targetGeneralXp = resolvedJobDefinition.rewardGeneralXp * progress;
+      const targetMastery = resolvedJobDefinition.rewardMastery * progress;
       needs = applyNeedDelta(
         needs,
-        jobDefinition.needCosts,
+        resolvedJobDefinition.needCosts,
         activeElapsedMs / activity.durationMs,
       );
       wallet += targetCoins - activity.creditedCoins;
-      stressDelta += jobDefinition.stressCost * (activeElapsedMs / activity.durationMs);
+      generalXp += targetGeneralXp - activity.creditedGeneralXp;
+      stressDelta += resolvedJobDefinition.stressCost * (activeElapsedMs / activity.durationMs);
       mastery += targetMastery - activity.creditedMastery;
       if (nextAccumulatedMs >= activity.durationMs) {
-        mastery += jobDefinition.completionMasteryBonus;
+        mastery += resolvedJobDefinition.completionMasteryBonus;
         activity = null;
-        statusText = `Completed ${jobDefinition.name}!`;
+        statusText = `Completed ${resolvedJobDefinition.name}!`;
       } else {
         activity = {
           ...activity,
           accumulatedMs: nextAccumulatedMs,
           creditedCoins: targetCoins,
+          creditedGeneralXp: targetGeneralXp,
           creditedMastery: targetMastery,
         };
       }
@@ -535,6 +576,7 @@ export function advancePetState(
       const definition = getCareerJobDefinition(activity.definitionId);
       const targetCoins = definition.rewardCoins * progress;
       const targetCareerXp = definition.rewardCareerXp * progress;
+      const targetGeneralXp = definition.rewardGeneralXp * progress;
       const career = careers[activity.careerId];
       if (career === undefined) {
         throw new Error("Active career job has no enrolled career state.");
@@ -545,6 +587,7 @@ export function advancePetState(
         activeElapsedMs / activity.durationMs,
       );
       wallet += targetCoins - activity.creditedCoins;
+      generalXp += targetGeneralXp - activity.creditedGeneralXp;
       stressDelta += definition.stressCost * (activeElapsedMs / activity.durationMs);
       careers = {
         ...careers,
@@ -572,6 +615,7 @@ export function advancePetState(
           accumulatedMs: nextAccumulatedMs,
           creditedCareerXp: targetCareerXp,
           creditedCoins: targetCoins,
+          creditedGeneralXp: targetGeneralXp,
         };
       }
     } else if (activity.type === "play") {
@@ -579,6 +623,7 @@ export function advancePetState(
       const targetAffection = definition.affectionGain * progress;
       const targetBond = definition.bondGain * progress;
       const targetEnergyCost = definition.energyCost * progress;
+      const targetGeneralXp = definition.rewardGeneralXp * progress;
       const targetMood = definition.moodGain * progress;
       const moodGain = positiveMoodGain(
         state,
@@ -593,6 +638,7 @@ export function advancePetState(
         mood: clampNeed(needs.mood + moodGain),
       };
       stressDelta -= targetStressRecovery - activity.creditedStressRecovery;
+      generalXp += targetGeneralXp - activity.creditedGeneralXp;
       state = applyRelationshipGain(
         state,
         now,
@@ -609,6 +655,7 @@ export function advancePetState(
           creditedAffection: targetAffection,
           creditedBond: targetBond,
           creditedEnergyCost: targetEnergyCost,
+          creditedGeneralXp: targetGeneralXp,
           creditedMood: activity.creditedMood + moodGain,
           creditedStressRecovery: targetStressRecovery,
         };
@@ -623,6 +670,9 @@ export function advancePetState(
         activity.gainMultiplier *
         (activeElapsedMs / activity.durationMs) *
         (isBurnedOut(state) ? BURNOUT_DEFINITION.studyGainMultiplier : 1);
+      const generalXpGain =
+        resolvedStudyDefinition.rewardGeneralXp *
+        (activeElapsedMs / activity.durationMs);
       needs = applyNeedDelta(
         needs,
         resolvedStudyDefinition.needCosts,
@@ -634,6 +684,7 @@ export function advancePetState(
           (knowledge[activity.knowledgeFieldId] ?? 0) +
           knowledgeGain,
       };
+      generalXp += generalXpGain;
       stressDelta += resolvedStudyDefinition.stressCost * (activeElapsedMs / activity.durationMs);
       if (nextAccumulatedMs >= activity.durationMs) {
         activity = null;
@@ -642,6 +693,7 @@ export function advancePetState(
         activity = {
           ...activity,
           accumulatedMs: nextAccumulatedMs,
+          creditedGeneralXp: activity.creditedGeneralXp + generalXpGain,
           creditedKnowledge: activity.creditedKnowledge + knowledgeGain,
         };
       }
@@ -659,6 +711,7 @@ export function advancePetState(
     ...state,
     activity,
     careers,
+    generalXp,
     household: { ...state.household, wallet },
     knowledge,
     mastery,
@@ -695,7 +748,9 @@ export function advancePetState(
   ) {
     const demanding =
       activityAtTickStart.type === "job"
-        ? jobDefinition.demanding
+        ? (activityAtTickStart.definitionId === jobDefinition.id
+            ? jobDefinition
+            : getGeneralJobDefinition(activityAtTickStart.definitionId)).demanding
         : activityAtTickStart.type === "careerJob"
           ? getCareerJobDefinition(activityAtTickStart.definitionId).demanding
           : getStudyDefinition(activityAtTickStart.definitionId).demanding;

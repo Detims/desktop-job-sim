@@ -52,6 +52,7 @@ describe("PersistenceSession", () => {
     expect(session.maybeCheckpoint(fiveSeconds, 5_000)).toBe(true);
     expect(repository.records).toHaveLength(1);
     expect(repository.records[0]?.state.activity?.accumulatedMs).toBe(5_000);
+    expect(repository.records[0]?.state.generalXp).toBeCloseTo(10 / 3);
   });
 
   it("checkpoints study using the same five-second durability bound", () => {
@@ -73,6 +74,7 @@ describe("PersistenceSession", () => {
     expect(
       repository.records[0]?.state.knowledge["core:general"],
     ).toBeGreaterThan(0);
+    expect(repository.records[0]?.state.generalXp).toBeCloseTo(10 / 3);
   });
 
   it("checkpoints proportional Clerk XP within the same five-second bound", () => {
@@ -98,6 +100,7 @@ describe("PersistenceSession", () => {
     expect(
       repository.records[0]?.state.careers["core:clerk"]?.mastery,
     ).toBeCloseTo(10 / 3);
+    expect(repository.records[0]?.state.generalXp).toBeCloseTo(10 / 3);
   });
 
   it("persists job completion immediately", () => {

@@ -67,6 +67,26 @@ describe("care and essentials", () => {
     expect(given.relationship.bond).toBe(0.5);
   });
 
+  it("keeps Deluxe Meal visible but level-gated until Level 3", () => {
+    const funded = {
+      ...createInitialPetState(0),
+      household: { inventory: {}, wallet: 20 },
+      needs: { ...createInitialPetState(0).needs, hunger: 40 },
+    };
+
+    expect(() => purchaseCareItem(funded, "core:deluxe-meal")).toThrow(
+      "requires Level 3",
+    );
+
+    const purchased = purchaseCareItem(
+      { ...funded, generalXp: 150 },
+      "core:deluxe-meal",
+    );
+    const used = useCareItem(purchased, "core:deluxe-meal", 100);
+    expect(purchased.household.wallet).toBe(8);
+    expect(used.needs.hunger).toBe(85);
+  });
+
   it("applies a cooldown to free comfort", () => {
     const initial = createInitialPetState(0);
     const stressed = {

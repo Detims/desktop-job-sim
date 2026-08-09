@@ -9,5 +9,6 @@
   "requiredRankId": "core:clerk:clerk",
   "rewardCareerXp": 15,
   "rewardCoins": 18,
+  "rewardGeneralXp": 12,
   "stressCost": 4
 }

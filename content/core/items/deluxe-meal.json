@@ -1,0 +1,9 @@
+{
+  "id": "core:deluxe-meal",
+  "name": "Deluxe Meal",
+  "price": 12,
+  "action": "feed",
+  "generalXpReward": 1,
+  "requiredLevel": 3,
+  "restoreAmount": 45
+}

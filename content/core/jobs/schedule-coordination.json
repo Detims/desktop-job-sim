@@ -9,5 +9,6 @@
   "requiredRankId": "core:administrative-assistant:assistant",
   "rewardCareerXp": 15,
   "rewardCoins": 16,
+  "rewardGeneralXp": 12,
   "stressCost": 4
 }

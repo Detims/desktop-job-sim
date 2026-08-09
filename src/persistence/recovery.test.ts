@@ -51,7 +51,7 @@ describe("pet-state recovery", () => {
   });
 
   it("applies at most eight hours of offline decay at half rate", () => {
-    const initial = createInitialPetState(1_000);
+    const initial = { ...createInitialPetState(1_000), generalXp: 49 };
     const recovered = recoverPetState(
       initial,
       1_000,
@@ -67,6 +67,7 @@ describe("pet-state recovery", () => {
       thirst: 68,
     });
     expect(recovered.state.relationship.affection).toBe(46);
+    expect(recovered.state.generalXp).toBe(49);
     expect(recovered.diagnostics.map(({ code }) => code)).toContain(
       "recovery.offline_capped",
     );
@@ -176,6 +177,9 @@ describe("pet-state recovery", () => {
     expect(recovered.state.mastery).toBeCloseTo(
       PROTOTYPE_JOB.rewardMastery / 3,
     );
+    expect(recovered.state.generalXp).toBeCloseTo(
+      PROTOTYPE_JOB.rewardGeneralXp / 3,
+    );
     expect(recovered.diagnostics.map(({ code }) => code)).toContain(
       "recovery.crash_settled",
     );
@@ -206,6 +210,9 @@ describe("pet-state recovery", () => {
     expect(recovered.state.activity).toBeNull();
     expect(recovered.state.knowledge["core:general"]).toBeCloseTo(
       (PROTOTYPE_STUDY.rewardKnowledge * 1.05) / 3,
+    );
+    expect(recovered.state.generalXp).toBeCloseTo(
+      PROTOTYPE_STUDY.rewardGeneralXp / 3,
     );
   });
 

@@ -4,6 +4,9 @@ import { createRoot } from "react-dom/client";
 import prototypeJob from "../../../content/core/jobs/prototype-job.json" with {
   type: "json",
 };
+import dataEntryJob from "../../../content/core/jobs/data-entry-shift.json" with {
+  type: "json",
+};
 import prototypeStudy from "../../../content/core/activities/study.json" with {
   type: "json",
 };
@@ -25,6 +28,11 @@ import processForms from "../../../content/core/jobs/process-forms.json" with {
   type: "json",
 };
 import { activityLabel } from "../../shared/activity-label.js";
+import {
+  nextPersonalLevel,
+  PERSONAL_LEVELS,
+  personalLevel,
+} from "../../domain/personal-growth.js";
 import type {
   ManagementTab,
   PetCommand,
@@ -112,6 +120,10 @@ function WorkTab({
 }) {
   const activity = state.activity;
   const generalKnowledge = state.knowledge["core:general"] ?? 0;
+  const level = personalLevel(state.generalXp);
+  const nextLevel = nextPersonalLevel(state.generalXp);
+  const currentLevelThreshold =
+    PERSONAL_LEVELS.find((definition) => definition.level === level)?.requiredXp ?? 0;
   const progress =
     activity === null
       ? 0
@@ -166,6 +178,24 @@ function WorkTab({
         Choose one major activity at a time. Progress is earned continuously,
         and cancellation keeps the amount already earned.
       </p>
+      <article className="growth-card">
+        <div>
+          <p className="eyebrow">Personal Growth</p>
+          <h3>Level {level}</h3>
+          <span>{state.generalXp.toFixed(1)} total General XP</span>
+        </div>
+        <div>
+          <progress
+            max={nextLevel === null ? 1 : nextLevel.requiredXp - currentLevelThreshold}
+            value={nextLevel === null ? 1 : state.generalXp - currentLevelThreshold}
+          />
+          <small>
+            {nextLevel === null
+              ? "Proof maximum reached; XP continues accumulating"
+              : `${state.generalXp.toFixed(1)} / ${nextLevel.requiredXp} XP to Level ${nextLevel.level}`}
+          </small>
+        </div>
+      </article>
       {state.care.seriousIllness !== null && (
         <aside className="condition-note">
           Serious Illness blocks work, study, exams, walking, and rest until recovery.
@@ -318,6 +348,39 @@ function WorkTab({
             type="button"
           >
             Start work
+          </button>
+        </div>
+      </article>
+
+      <article className="work-category">
+        <header className="section-heading">
+          <div>
+            <p className="eyebrow">Part-Time Jobs</p>
+            <h2>{dataEntryJob.name}</h2>
+          </div>
+          <span className={level >= dataEntryJob.requiredLevel ? "status idle" : "status locked"}>
+            {level >= dataEntryJob.requiredLevel ? "Unlocked" : `Requires Level ${dataEntryJob.requiredLevel}`}
+          </span>
+        </header>
+        <p className="description">
+          A demanding office shift with stronger proportional coin, mastery,
+          and General XP rewards.
+        </p>
+        <div className="metric-grid">
+          <article><span>Duration</span><strong>{dataEntryJob.durationMs / 1000} sec</strong></article>
+          <article><span>Coins</span><strong>{dataEntryJob.rewardCoins}</strong></article>
+          <article><span>Mastery</span><strong>{dataEntryJob.rewardMastery}</strong></article>
+          <article><span>General XP</span><strong>{dataEntryJob.rewardGeneralXp}</strong></article>
+        </div>
+        <div className="actions">
+          <button
+            className="primary"
+            disabled={level < dataEntryJob.requiredLevel || !canStartAction(dataEntryJob.demanding)}
+            title={level < dataEntryJob.requiredLevel ? `Requires Level ${dataEntryJob.requiredLevel}` : burnout !== undefined ? "Burnout blocks demanding work." : ""}
+            onClick={() => void dispatch({ jobId: dataEntryJob.id, type: "startJob" })}
+            type="button"
+          >
+            {level < dataEntryJob.requiredLevel ? `Requires Level ${dataEntryJob.requiredLevel}` : "Start work"}
           </button>
         </div>
       </article>
@@ -695,7 +758,7 @@ function MemoriesTab({ refreshKey }: { refreshKey: string }) {
 function App() {
   const [activeTab, setActiveTab] = useState<ManagementTab>("work");
   const { dispatch, error, state } = usePetState();
-  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}:${state?.care.recoveryProtectedUntil ?? 0}`;
+  const memoryRefreshKey = `${Object.keys(state?.qualifications ?? {}).length}:${Object.values(state?.careers ?? {}).map((career) => career.rankId).join("|")}:${state?.care.recoveryProtectedUntil ?? 0}:${personalLevel(state?.generalXp ?? 0)}`;
 
   useEffect(
     () => window.desktopManagement.onTabRequested(setActiveTab),
@@ -719,6 +782,7 @@ function App() {
         </div>
         <div className="header-actions">
           <div className="account-summary">
+            <span>Level {personalLevel(state.generalXp)} · {state.generalXp.toFixed(1)} XP</span>
             <span>{state.household.wallet.toFixed(1)} coins</span>
             <span>{state.mastery.toFixed(1)} mastery</span>
           </div>

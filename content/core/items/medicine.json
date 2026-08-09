@@ -3,5 +3,7 @@
   "name": "Medicine",
   "price": 20,
   "action": "medicine",
+  "generalXpReward": 2,
+  "requiredLevel": 1,
   "restoreAmount": 0
 }

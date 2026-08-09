@@ -3,5 +3,7 @@
   "name": "Water",
   "price": 3,
   "action": "drink",
+  "generalXpReward": 1,
+  "requiredLevel": 1,
   "restoreAmount": 30
 }

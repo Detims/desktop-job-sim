@@ -19,7 +19,7 @@ import {
   cancelActiveActivity,
   createInitialPetState,
   startCareerJob,
-  startPrototypeJob,
+  startJob,
   startPrototypePlay,
   startPrototypeRest,
   startStudy,
@@ -35,6 +35,12 @@ import {
 import { getCareItem } from "../domain/care-items.js";
 import { petRelationship, talkToPet } from "../domain/relationship.js";
 import { BURNOUT_CONDITION_ID } from "../domain/burnout.js";
+import {
+  grantGeneralXp,
+  INTENTIONAL_ACTION_XP,
+  personalGrowthEventDrafts,
+  personalGrowthMemoryDrafts,
+} from "../domain/personal-growth.js";
 
 function relationshipMilestoneMemory(
   prior: PetState,
@@ -220,7 +226,10 @@ export class PetController {
     return this.commandQueue.enqueue(() => {
       switch (command.type) {
         case "comfort": {
-          const next = comfortPet(this.state, now);
+          const next = grantGeneralXp(
+            comfortPet(this.state, now),
+            INTENTIONAL_ACTION_XP,
+          );
           const memory = relationshipMilestoneMemory(this.state, next);
           const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
@@ -285,7 +294,7 @@ export class PetController {
         }
         case "pet": {
           const related = petRelationship(this.state, now);
-          const next = {
+          const next = grantGeneralXp({
             ...related,
             needs: {
               ...related.needs,
@@ -296,7 +305,7 @@ export class PetController {
             presentationUntil:
               related.care.seriousIllness === null ? now + 900 : null,
             statusText: "Purr!",
-          };
+          }, INTENTIONAL_ACTION_XP);
           const memory = relationshipMilestoneMemory(this.state, next);
           const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(
@@ -324,7 +333,7 @@ export class PetController {
           break;
         }
         case "startJob": {
-          const next = startPrototypeJob(this.state, now);
+          const next = startJob(this.state, now, command.jobId);
           this.commit(
             next,
             now,
@@ -378,7 +387,10 @@ export class PetController {
         }
         case "useItem": {
           const item = getCareItem(command.itemId);
-          const next = useCareItem(this.state, command.itemId, now);
+          const next = grantGeneralXp(
+            useCareItem(this.state, command.itemId, now),
+            item.generalXpReward,
+          );
           const memory = relationshipMilestoneMemory(this.state, next);
           const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
@@ -390,7 +402,10 @@ export class PetController {
           break;
         }
         case "talk": {
-          const next = talkToPet(this.state, now);
+          const next = grantGeneralXp(
+            talkToPet(this.state, now),
+            INTENTIONAL_ACTION_XP,
+          );
           const memory = relationshipMilestoneMemory(this.state, next);
           const milestoneEvent = relationshipMilestoneEvent(this.state, next);
           this.commit(next, now, [{
@@ -482,6 +497,12 @@ export class PetController {
       return;
     }
 
+    const progressionEvents = personalGrowthEventDrafts(this.state, nextState);
+    const progressionMemories = personalGrowthMemoryDrafts(this.state, nextState);
+    const committedEvents = [...(events ?? []), ...progressionEvents];
+    const committedMemories = [...(memories ?? []), ...progressionMemories];
+    const effectiveDurableAt =
+      durableAt ?? (progressionEvents.length > 0 ? nextState.updatedAt : undefined);
     const baseVersion = this.state.stateVersion;
     const nextVersion = baseVersion + 1;
     const changes: PetMutableState = {
@@ -490,6 +511,7 @@ export class PetController {
       careers: nextState.careers,
       conditions: nextState.conditions,
       examCooldowns: nextState.examCooldowns,
+      generalXp: nextState.generalXp,
       knowledge: nextState.knowledge,
       mastery: nextState.mastery,
       needs: nextState.needs,
@@ -508,8 +530,13 @@ export class PetController {
       stateVersion: nextVersion,
     };
 
-    if (durableAt !== undefined) {
-      this.durableCommit?.(committedState, durableAt, events, memories);
+    if (effectiveDurableAt !== undefined) {
+      this.durableCommit?.(
+        committedState,
+        effectiveDurableAt,
+        committedEvents,
+        committedMemories,
+      );
     }
 
     this.state = committedState;

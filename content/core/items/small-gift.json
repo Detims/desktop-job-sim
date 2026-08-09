@@ -3,6 +3,8 @@
   "name": "Small Gift",
   "action": "gift",
   "price": 8,
+  "generalXpReward": 1,
+  "requiredLevel": 1,
   "restoreAmount": 0,
   "relationshipAffection": 5,
   "relationshipBond": 0.5,

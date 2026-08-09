@@ -24,6 +24,7 @@ export interface UpdateSettingsCommand {
 }
 
 export type MeaningfulEventType =
+  | "progression.level_up"
   | "activity.started"
   | "activity.completed"
   | "activity.cancelled"

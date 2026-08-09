@@ -214,6 +214,36 @@ h2 {
   width: 100%;
 }
 
+.growth-card {
+  align-items: center;
+  background: #f7f4ed;
+  border: 1px solid #ded8cb;
+  border-radius: 13px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(130px, auto) 1fr;
+  margin-top: 18px;
+  padding: 14px 16px;
+}
+
+.growth-card h3 {
+  margin: 2px 0;
+}
+
+.growth-card span,
+.growth-card small {
+  color: #787166;
+  font-size: 11px;
+}
+
+.growth-card progress {
+  accent-color: #0284c7;
+  display: block;
+  height: 10px;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
 .activity-line {
   font-size: 12px;
 }

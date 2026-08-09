@@ -11,6 +11,11 @@ import type { PetCommand, PetSnapshot, PetState } from "../../shared/pet-types.j
 import { CARE_ITEMS } from "../../domain/care-items.js";
 import { hygieneBand, stressBand } from "../../domain/care.js";
 import { DAILY_BOND_CAP, localDateKey } from "../../domain/relationship.js";
+import {
+  nextPersonalLevel,
+  PERSONAL_LEVELS,
+  personalLevel,
+} from "../../domain/personal-growth.js";
 import { PROTOTYPE_PLAY } from "../../simulation/pet-simulation.js";
 
 type OverlayTab =
@@ -76,6 +81,9 @@ export async function initializePetOverlay(
   const loadOlder = requiredElement<HTMLButtonElement>("#load-older-activity");
   const careError = requiredElement<HTMLOutputElement>("#care-error");
   const shopWallet = requiredElement<HTMLElement>("#shop-wallet");
+  const personalLevelText = requiredElement<HTMLElement>("#personal-level");
+  const generalXpText = requiredElement<HTMLElement>("#general-xp");
+  const generalXpProgress = requiredElement<HTMLProgressElement>("#general-xp-progress");
   const health = requiredElement<HTMLProgressElement>("#health");
   const affection = requiredElement<HTMLProgressElement>("#affection");
   const bond = requiredElement<HTMLProgressElement>("#bond");
@@ -106,6 +114,21 @@ export async function initializePetOverlay(
   let nextCursor: ActivityPage["nextCursor"] | undefined;
   const events = new Map<string, MeaningfulEvent>();
   function renderCareState(state: PetState): void {
+    const level = personalLevel(state.generalXp);
+    const nextLevel = nextPersonalLevel(state.generalXp);
+    personalLevelText.textContent = `Level ${level}`;
+    generalXpText.textContent = `${state.generalXp.toFixed(1)} General XP`;
+    if (nextLevel === null) {
+      generalXpProgress.max = 1;
+      generalXpProgress.value = 1;
+      generalXpProgress.title = `Level ${level} proof maximum; ${state.generalXp.toFixed(1)} total XP`;
+    } else {
+      const currentThreshold =
+        PERSONAL_LEVELS.find((definition) => definition.level === level)?.requiredXp ?? 0;
+      generalXpProgress.max = nextLevel.requiredXp - currentThreshold;
+      generalXpProgress.value = state.generalXp - currentThreshold;
+      generalXpProgress.title = `${state.generalXp.toFixed(1)} / ${nextLevel.requiredXp} XP toward Level ${nextLevel.level}`;
+    }
     health.value = state.care.health;
     affection.value = state.relationship.affection;
     affection.title = `Affection: ${state.relationship.affection.toFixed(1)} of 100`;
@@ -157,10 +180,19 @@ export async function initializePetOverlay(
         (candidate) => candidate.id === button.dataset.purchaseItem,
       );
       const locked = item !== undefined && state.relationship.bond < item.requiredBond;
+      const levelLocked = item !== undefined && level < item.requiredLevel;
       button.disabled =
-        item === undefined || locked || state.household.wallet < item.price;
-      button.textContent = locked ? `Bond ${item?.requiredBond ?? 0}` : "Buy";
-      button.title = locked ? `Requires Bond ${item?.requiredBond ?? 0}` : "";
+        item === undefined || levelLocked || locked || state.household.wallet < item.price;
+      button.textContent = levelLocked
+        ? `Level ${item?.requiredLevel ?? 1}`
+        : locked
+          ? `Bond ${item?.requiredBond ?? 0}`
+          : "Buy";
+      button.title = levelLocked
+        ? `Requires Level ${item?.requiredLevel ?? 1}`
+        : locked
+          ? `Requires Bond ${item?.requiredBond ?? 0}`
+          : "";
     }
     for (const button of useButtons) {
       const item = CARE_ITEMS.find(
