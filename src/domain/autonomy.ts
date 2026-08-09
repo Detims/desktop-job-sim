@@ -137,6 +137,7 @@ function itemDecision(
     return { jobId: subsistenceJob.id, trigger, type: "startJob" };
   }
 
+  if (state.activity !== null) return null;
   if (!emergency && canAfford) return null;
   return {
     code: "autonomy.no_safe_action",

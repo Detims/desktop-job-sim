@@ -456,8 +456,8 @@ function startScheduler(): void {
 
     if (elapsedMs > 0) {
       const now = Date.now();
-      const snapshot = requirePetController().tick(elapsedMs, now);
       try {
+        const snapshot = requirePetController().tick(elapsedMs, now);
         persistenceSession?.maybeCheckpoint(snapshot.state, now);
       } catch (error: unknown) {
         handlePersistenceFailure(error);
@@ -970,10 +970,12 @@ app.whenReady().then(() => {
           if (
             event.type === "care.burnout_started" ||
             event.type === "care.burnout_recovered" ||
+            event.type === "autonomy.action" ||
+            event.type === "autonomy.blocked" ||
             event.type === "progression.level_up"
           ) {
             diagnosticLogger?.write(
-              "info",
+              event.type === "autonomy.blocked" ? "warning" : "info",
               event.type,
               event.summary,
               event.details,
@@ -986,10 +988,18 @@ app.whenReady().then(() => {
     petController.setPassiveNeedMultiplier(
       CARE_INTENSITY_MULTIPLIERS[initialSettings.careIntensity],
     );
+    petController.setAutonomyPolicy({
+      mode: initialSettings.autonomyMode,
+      reserveCoins: initialSettings.autonomyReserve,
+    });
     settingsController.subscribe((settings) => {
       petController?.setPassiveNeedMultiplier(
         CARE_INTENSITY_MULTIPLIERS[settings.careIntensity],
       );
+      petController?.setAutonomyPolicy({
+        mode: settings.autonomyMode,
+        reserveCoins: settings.autonomyReserve,
+      });
       if (petWindow !== null && !petWindow.isDestroyed()) {
         petWindow.setAlwaysOnTop(settings.alwaysOnTop, "floating");
       }

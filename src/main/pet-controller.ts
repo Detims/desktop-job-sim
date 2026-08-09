@@ -41,6 +41,12 @@ import {
   personalGrowthEventDrafts,
   personalGrowthMemoryDrafts,
 } from "../domain/personal-growth.js";
+import {
+  evaluateAutonomy,
+  type AutonomyDecision,
+  type AutonomyPolicy,
+} from "../domain/autonomy.js";
+import { PROTOTYPE_JOB } from "../simulation/pet-simulation.js";
 
 function relationshipMilestoneMemory(
   prior: PetState,
@@ -91,6 +97,8 @@ export class PetController {
   private readonly listeners = new Set<PatchListener>();
   private state: PetState;
   private passiveNeedMultiplier = 1;
+  private autonomyPolicy: AutonomyPolicy = { mode: "manual", reserveCoins: 10 };
+  private lastAutonomyBlockedKey: string | null = null;
 
   constructor(
     initial: number | PetState,
@@ -109,6 +117,14 @@ export class PetController {
 
   setPassiveNeedMultiplier(multiplier: number): void {
     this.passiveNeedMultiplier = Math.max(0, multiplier);
+  }
+
+  setAutonomyPolicy(policy: AutonomyPolicy): void {
+    this.autonomyPolicy = {
+      mode: policy.mode,
+      reserveCoins: Math.min(1_000, Math.max(0, Math.trunc(policy.reserveCoins))),
+    };
+    this.lastAutonomyBlockedKey = null;
   }
 
   getSnapshot(): PetSnapshot {
@@ -219,6 +235,7 @@ export class PetController {
         ...(relationshipMemory === undefined ? [] : [relationshipMemory]),
       ],
     );
+    this.runAutonomy(now);
     return this.getSnapshot();
   }
 
@@ -455,6 +472,7 @@ export class PetController {
           break;
       }
 
+      this.runAutonomy(now);
       return this.getSnapshot();
     });
   }
@@ -484,6 +502,97 @@ export class PetController {
       petId: this.state.petId,
       summary: `${activityType} started.`,
       type: "activity.started",
+    };
+  }
+
+  private runAutonomy(now: number): void {
+    const decision = evaluateAutonomy(
+      this.state,
+      this.autonomyPolicy,
+      PROTOTYPE_JOB,
+    );
+    if (decision === null) {
+      this.lastAutonomyBlockedKey = null;
+      return;
+    }
+
+    if (decision.type === "blocked") {
+      const key = `${this.autonomyPolicy.mode}:${decision.code}:${decision.trigger}`;
+      if (key === this.lastAutonomyBlockedKey) return;
+      this.lastAutonomyBlockedKey = key;
+      this.commit(
+        { ...this.state, statusText: decision.message, updatedAt: now },
+        now,
+        [this.autonomyEvent(decision)],
+      );
+      return;
+    }
+
+    this.lastAutonomyBlockedKey = null;
+    let next: PetState;
+    switch (decision.type) {
+      case "cancelActivity":
+        next = cancelActiveActivity(this.state);
+        break;
+      case "purchaseItem":
+        next = purchaseCareItem(this.state, decision.itemId);
+        break;
+      case "startJob":
+        next = startJob(this.state, now, decision.jobId);
+        break;
+      case "startRest":
+        next = startPrototypeRest(this.state, now, this.activityBonuses);
+        break;
+      case "useItem": {
+        const item = getCareItem(decision.itemId);
+        next = grantGeneralXp(
+          useCareItem(this.state, decision.itemId, now),
+          item.generalXpReward,
+        );
+        break;
+      }
+    }
+    this.commit(
+      { ...next, updatedAt: now },
+      now,
+      [this.autonomyEvent(decision)],
+    );
+  }
+
+  private autonomyEvent(decision: AutonomyDecision): MeaningfulEventDraft {
+    const details: Record<string, boolean | number | string | null> = {
+      action: decision.type,
+      energy: this.state.needs.energy,
+      health: this.state.care.health,
+      hunger: this.state.needs.hunger,
+      hygiene: this.state.care.hygiene,
+      mode: this.autonomyPolicy.mode,
+      reserveCoins: this.autonomyPolicy.reserveCoins,
+      thirst: this.state.needs.thirst,
+      trigger: decision.trigger,
+      wallet: this.state.household.wallet,
+    };
+    if ("itemId" in decision) details.itemId = decision.itemId;
+    if ("jobId" in decision) details.jobId = decision.jobId;
+    if (decision.type === "purchaseItem") details.emergency = decision.emergency;
+    if (decision.type === "blocked") details.code = decision.code;
+
+    const summary = decision.type === "blocked"
+      ? decision.message
+      : decision.type === "cancelActivity"
+        ? `Autonomy stopped an unsafe activity; partial progress was kept.`
+        : decision.type === "startRest"
+          ? "Autonomy started Rest for low energy."
+          : decision.type === "startJob"
+            ? "Autonomy started safe subsistence work for essential funds."
+            : decision.type === "purchaseItem"
+              ? `Autonomy purchased ${getCareItem(decision.itemId).name}.`
+              : `Autonomy used ${getCareItem(decision.itemId).name}.`;
+    return {
+      details,
+      petId: this.state.petId,
+      summary,
+      type: decision.type === "blocked" ? "autonomy.blocked" : "autonomy.action",
     };
   }
 

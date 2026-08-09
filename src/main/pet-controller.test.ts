@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 import type { MemoryEntryDraft } from "../shared/memory-types.js";
+import { createInitialPetState, startPrototypeJob } from "../simulation/pet-simulation.js";
 import { PetController } from "./pet-controller.js";
 
 describe("PetController", () => {
@@ -86,6 +87,135 @@ describe("PetController", () => {
       "care.item_purchased",
       "care.item_used",
     ]);
+  });
+
+  it("uses one owned essential per tick with normal General XP and no relationship gain", () => {
+    const base = createInitialPetState(1_000);
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        household: { inventory: { "core:water": 1 }, wallet: 0 },
+        needs: { ...base.needs, thirst: 25 },
+      },
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+    controller.setAutonomyPolicy({ mode: "ownedSupplies", reserveCoins: 10 });
+
+    controller.tick(1_000, 2_000);
+
+    const result = controller.getSnapshot().state;
+    expect(result.needs.thirst).toBeGreaterThan(54);
+    expect(result.household.inventory["core:water"]).toBeUndefined();
+    expect(result.generalXp).toBe(1);
+    expect(result.relationship.affection).toBeLessThanOrEqual(base.relationship.affection);
+    expect(result.relationship.bond).toBe(base.relationship.bond);
+    expect(events).toEqual([
+      expect.objectContaining({
+        details: expect.objectContaining({ action: "useItem", trigger: "thirst" }),
+        type: "autonomy.action",
+      }),
+    ]);
+  });
+
+  it("purchases and then uses an essential on separate evaluations", () => {
+    const base = createInitialPetState(1_000);
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        household: { inventory: {}, wallet: 20 },
+        needs: { ...base.needs, thirst: 25 },
+      },
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+    controller.setAutonomyPolicy({ mode: "carefulSpending", reserveCoins: 10 });
+
+    controller.tick(1_000, 2_000);
+    expect(controller.getSnapshot().state.household).toEqual({
+      inventory: { "core:water": 1 },
+      wallet: 17,
+    });
+    expect(controller.getSnapshot().state.generalXp).toBe(0);
+
+    controller.tick(1_000, 3_000);
+    expect(controller.getSnapshot().state.household.inventory["core:water"]).toBeUndefined();
+    expect(controller.getSnapshot().state.generalXp).toBe(1);
+    expect(events.filter(({ type }) => type === "autonomy.action")).toHaveLength(2);
+  });
+
+  it("starts safe subsistence work and cancels it with proportional rewards at an unsafe threshold", () => {
+    const base = createInitialPetState(1_000);
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        household: { inventory: {}, wallet: 0 },
+        needs: { ...base.needs, thirst: 25 },
+      },
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+    controller.setAutonomyPolicy({ mode: "independent", reserveCoins: 10 });
+    controller.tick(1_000, 2_000);
+    expect(controller.getSnapshot().state.activity?.type).toBe("job");
+
+    const working = startPrototypeJob(
+      { ...base, needs: { ...base.needs, energy: 12 } },
+      1_100,
+    );
+    const unsafeController = new PetController(
+      working,
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+    unsafeController.setAutonomyPolicy({ mode: "independent", reserveCoins: 10 });
+    unsafeController.tick(4_000, 5_100);
+
+    const cancelled = unsafeController.getSnapshot().state;
+    expect(cancelled.activity).toBeNull();
+    expect(cancelled.household.wallet).toBeGreaterThan(base.household.wallet);
+    expect(events).toContainEqual(expect.objectContaining({
+      details: expect.objectContaining({ action: "cancelActivity", trigger: "energy" }),
+      type: "autonomy.action",
+    }));
+  });
+
+  it("deduplicates a persistent no-safe-action notification", () => {
+    const base = createInitialPetState(1_000);
+    const events: MeaningfulEventDraft[] = [];
+    const controller = new PetController(
+      {
+        ...base,
+        household: { inventory: {}, wallet: 0 },
+        needs: { ...base.needs, thirst: 10 },
+      },
+      (_state, _now, drafts = []) => events.push(...drafts),
+    );
+    controller.setAutonomyPolicy({ mode: "carefulSpending", reserveCoins: 10 });
+
+    controller.tick(1_000, 2_000);
+    controller.tick(1_000, 3_000);
+
+    expect(events.filter(({ type }) => type === "autonomy.blocked")).toHaveLength(1);
+    expect(controller.getSnapshot().state.statusText).toContain("No safe autonomous action");
+  });
+
+  it("does not expose an autonomous purchase when its durable save fails", () => {
+    const base = createInitialPetState(1_000);
+    const controller = new PetController(
+      {
+        ...base,
+        household: { inventory: {}, wallet: 20 },
+        needs: { ...base.needs, thirst: 25 },
+      },
+      () => { throw new Error("disk unavailable"); },
+    );
+    controller.setAutonomyPolicy({ mode: "carefulSpending", reserveCoins: 10 });
+
+    expect(() => controller.tick(1_000, 2_000)).toThrow("disk unavailable");
+    expect(controller.getSnapshot().state.household).toEqual({
+      inventory: {},
+      wallet: 20,
+    });
   });
 
   it("durably records a level transition and Growing Up Memory exactly once", async () => {
