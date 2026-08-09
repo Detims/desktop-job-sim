@@ -6,9 +6,17 @@ export type CareIntensity =
 
 export type ActivityRetention = "thirtyDays" | "indefinite";
 
+export type AutonomyMode =
+  | "manual"
+  | "ownedSupplies"
+  | "carefulSpending"
+  | "independent";
+
 export interface AppSettings {
   activityRetention: ActivityRetention;
   alwaysOnTop: boolean;
+  autonomyMode: AutonomyMode;
+  autonomyReserve: number;
   careIntensity: CareIntensity;
   settingsVersion: number;
 }
@@ -16,6 +24,8 @@ export interface AppSettings {
 export type SettingsUpdate =
   | { careIntensity: CareIntensity; type: "setCareIntensity" }
   | { alwaysOnTop: boolean; type: "setAlwaysOnTop" }
+  | { autonomyMode: AutonomyMode; type: "setAutonomyMode" }
+  | { autonomyReserve: number; type: "setAutonomyReserve" }
   | { activityRetention: ActivityRetention; type: "setActivityRetention" };
 
 export interface UpdateSettingsCommand {
@@ -52,6 +62,8 @@ export type MeaningfulEventType =
   | "relationship.milestone"
   | "startup.recovered"
   | "settings.care_intensity_changed"
+  | "settings.autonomy_mode_changed"
+  | "settings.autonomy_reserve_changed"
   | "settings.always_on_top_changed"
   | "settings.retention_changed";
 
@@ -101,6 +113,8 @@ export const CARE_INTENSITY_MULTIPLIERS: Readonly<
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   activityRetention: "thirtyDays",
   alwaysOnTop: true,
+  autonomyMode: "manual",
+  autonomyReserve: 10,
   careIntensity: "balanced",
   settingsVersion: 0,
 });

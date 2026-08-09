@@ -73,6 +73,53 @@ describe("SettingsController", () => {
     );
   });
 
+  it("persists autonomy mode and reserve changes as versioned settings", () => {
+    const storage = repository();
+    const activity = vi.fn();
+    const controller = new SettingsController(
+      DEFAULT_APP_SETTINGS,
+      storage,
+      activity,
+    );
+
+    const independent = controller.update(
+      {
+        baseVersion: 0,
+        update: { autonomyMode: "independent", type: "setAutonomyMode" },
+      },
+      100,
+    );
+    const protectedBalance = controller.update(
+      {
+        baseVersion: 1,
+        update: { autonomyReserve: 25, type: "setAutonomyReserve" },
+      },
+      200,
+    );
+
+    expect(independent.autonomyMode).toBe("independent");
+    expect(protectedBalance).toEqual(expect.objectContaining({
+      autonomyMode: "independent",
+      autonomyReserve: 25,
+      settingsVersion: 2,
+    }));
+    expect(storage.saveSettings).toHaveBeenNthCalledWith(
+      1,
+      independent,
+      0,
+      expect.objectContaining({ type: "settings.autonomy_mode_changed" }),
+      undefined,
+    );
+    expect(storage.saveSettings).toHaveBeenNthCalledWith(
+      2,
+      protectedBalance,
+      1,
+      expect.objectContaining({ type: "settings.autonomy_reserve_changed" }),
+      undefined,
+    );
+    expect(activity).toHaveBeenCalledTimes(2);
+  });
+
   it("does not publish or mutate when persistence fails", () => {
     const storage = repository();
     vi.mocked(storage.saveSettings).mockImplementation(() => {

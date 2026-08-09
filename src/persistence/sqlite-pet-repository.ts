@@ -37,7 +37,7 @@ import type { SettingsActivityRepository } from "./settings-activity-repository.
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -64,6 +64,8 @@ interface HomeLayoutRow {
 interface SettingsRow {
   activity_retention: string;
   always_on_top: number;
+  autonomy_mode: string;
+  autonomy_reserve: number;
   care_intensity: string;
   settings_version: number;
 }
@@ -229,7 +231,8 @@ export class SqlitePetRepository
     try {
       const row = this.database
         .prepare(
-          `SELECT care_intensity, always_on_top, activity_retention, settings_version
+          `SELECT care_intensity, always_on_top, autonomy_mode, autonomy_reserve,
+                  activity_retention, settings_version
              FROM app_settings
             WHERE id = 1`,
         )
@@ -240,6 +243,8 @@ export class SqlitePetRepository
       return AppSettingsSchema.parse({
         activityRetention: row.activity_retention,
         alwaysOnTop: row.always_on_top === 1,
+        autonomyMode: row.autonomy_mode,
+        autonomyReserve: row.autonomy_reserve,
         careIntensity: row.care_intensity,
         settingsVersion: row.settings_version,
       });
@@ -497,12 +502,15 @@ export class SqlitePetRepository
       this.database
         .prepare(
           `UPDATE app_settings
-              SET care_intensity = ?, always_on_top = ?, activity_retention = ?, settings_version = ?
+              SET care_intensity = ?, always_on_top = ?, autonomy_mode = ?,
+                  autonomy_reserve = ?, activity_retention = ?, settings_version = ?
             WHERE id = 1`,
         )
         .run(
           validated.careIntensity,
           validated.alwaysOnTop ? 1 : 0,
+          validated.autonomyMode,
+          validated.autonomyReserve,
           validated.activityRetention,
           validated.settingsVersion,
         );
@@ -731,6 +739,15 @@ export class SqlitePetRepository
       if (fromVersion < 9) {
         // Personal Growth remains schema-controlled JSON inside pet_runtime.
         // Legacy saves receive zero General XP and retain all prior progress.
+      }
+      if (fromVersion < 10) {
+        database.exec(`
+          ALTER TABLE app_settings
+            ADD COLUMN autonomy_mode TEXT NOT NULL DEFAULT 'manual';
+          ALTER TABLE app_settings
+            ADD COLUMN autonomy_reserve INTEGER NOT NULL DEFAULT 10
+              CHECK (autonomy_reserve BETWEEN 0 AND 1000);
+        `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");

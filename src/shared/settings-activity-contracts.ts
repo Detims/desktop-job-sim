@@ -6,6 +6,7 @@ export type {
   ActivityPageRequest,
   ActivityRetention,
   AppSettings,
+  AutonomyMode,
   CareIntensity,
   EventDetailValue,
   MeaningfulEvent,
@@ -24,9 +25,18 @@ export const CareIntensitySchema = z.enum([
 
 export const ActivityRetentionSchema = z.enum(["thirtyDays", "indefinite"]);
 
+export const AutonomyModeSchema = z.enum([
+  "manual",
+  "ownedSupplies",
+  "carefulSpending",
+  "independent",
+]);
+
 export const AppSettingsSchema = z.object({
   activityRetention: ActivityRetentionSchema,
   alwaysOnTop: z.boolean(),
+  autonomyMode: AutonomyModeSchema,
+  autonomyReserve: z.number().int().min(0).max(1_000),
   careIntensity: CareIntensitySchema,
   settingsVersion: z.number().int().nonnegative(),
 });
@@ -34,6 +44,8 @@ export const AppSettingsSchema = z.object({
 export const SettingsUpdateSchema = z.discriminatedUnion("type", [
   z.object({ careIntensity: CareIntensitySchema, type: z.literal("setCareIntensity") }),
   z.object({ alwaysOnTop: z.boolean(), type: z.literal("setAlwaysOnTop") }),
+  z.object({ autonomyMode: AutonomyModeSchema, type: z.literal("setAutonomyMode") }),
+  z.object({ autonomyReserve: z.number().int().min(0).max(1_000), type: z.literal("setAutonomyReserve") }),
   z.object({ activityRetention: ActivityRetentionSchema, type: z.literal("setActivityRetention") }),
 ]);
 
@@ -71,6 +83,8 @@ export const MeaningfulEventTypeSchema = z.enum([
   "relationship.milestone",
   "startup.recovered",
   "settings.care_intensity_changed",
+  "settings.autonomy_mode_changed",
+  "settings.autonomy_reserve_changed",
   "settings.always_on_top_changed",
   "settings.retention_changed",
 ]);

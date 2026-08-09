@@ -61,6 +61,22 @@ export class SettingsController {
           type: "settings.always_on_top_changed" as const,
         };
         break;
+      case "setAutonomyMode":
+        next = { ...current, autonomyMode: command.update.autonomyMode };
+        eventDraft = {
+          details: { from: current.autonomyMode, to: next.autonomyMode },
+          summary: `Autonomy changed to ${next.autonomyMode}.`,
+          type: "settings.autonomy_mode_changed" as const,
+        };
+        break;
+      case "setAutonomyReserve":
+        next = { ...current, autonomyReserve: command.update.autonomyReserve };
+        eventDraft = {
+          details: { from: current.autonomyReserve, to: next.autonomyReserve },
+          summary: `Autonomy reserve changed to ${next.autonomyReserve} coins.`,
+          type: "settings.autonomy_reserve_changed" as const,
+        };
+        break;
       case "setActivityRetention":
         next = { ...current, activityRetention: command.update.activityRetention };
         eventDraft = {
@@ -74,6 +90,8 @@ export class SettingsController {
     if (
       next.careIntensity === current.careIntensity &&
       next.alwaysOnTop === current.alwaysOnTop &&
+      next.autonomyMode === current.autonomyMode &&
+      next.autonomyReserve === current.autonomyReserve &&
       next.activityRetention === current.activityRetention
     ) {
       return this.getSnapshot();
