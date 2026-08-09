@@ -179,7 +179,6 @@ function publishActivityEvent(event: MeaningfulEvent): void {
 }
 
 function publishSettings(settings: AppSettings): void {
-  publishToPetSurfaces(IPC_CHANNELS.settingsChanged, settings);
   if (settingsWindow !== null && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
   }
@@ -198,8 +197,6 @@ function registerPetIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
     if (
-      !isPetSender(event) &&
-      !isHomeSender(event) &&
       (settingsWindow === null || event.sender !== settingsWindow.webContents)
     ) {
       throw new Error("Unauthorized settings request.");
@@ -225,8 +222,6 @@ function registerPetIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.updateSettings, (event, input: unknown) => {
     if (
-      !isPetSender(event) &&
-      !isHomeSender(event) &&
       (settingsWindow === null || event.sender !== settingsWindow.webContents)
     ) {
       throw new Error("Unauthorized settings update.");

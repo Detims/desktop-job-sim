@@ -60,8 +60,7 @@
   padding: 6px 4px;
 }
 
-#pet-stats-overlay .care-bands,
-#pet-stats-overlay .shop-heading {
+#pet-stats-overlay .care-bands {
   align-items: center;
   display: flex;
   font-size: 9px;
@@ -69,8 +68,7 @@
   margin-top: 4px;
 }
 
-#pet-stats-overlay .care-bands strong,
-#pet-stats-overlay .shop-heading span {
+#pet-stats-overlay .care-bands strong {
   color: #0284c7;
 }
 
@@ -90,8 +88,7 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
-#pet-stats-overlay .care-actions button,
-#pet-stats-overlay .item-list button {
+#pet-stats-overlay .care-actions button {
   font-size: 10px;
   min-height: 27px;
 }
@@ -103,96 +100,10 @@
   text-align: center;
 }
 
-#pet-stats-overlay .item-list {
-  display: grid;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-#pet-stats-overlay .item-list > div {
-  align-items: center;
-  border-bottom: 1px solid rgb(51 65 85 / 10%);
-  display: flex;
-  font-size: 10px;
-  justify-content: space-between;
-  min-height: 27px;
-}
-
-#pet-stats-overlay .item-list > .item-category {
-  border: 0;
-  color: #475569;
-  font-size: 9px;
-  font-weight: 750;
-  min-height: 20px;
-  padding-top: 3px;
-  text-transform: uppercase;
-}
-
-#pet-stats-overlay .item-list small {
-  color: #64748b;
-  font-size: 8px;
-}
-
-#pet-stats-overlay .inventory-list strong {
-  color: #0284c7;
-}
-
 #pet-stats-overlay .overlay-tabs button:hover,
 #pet-stats-overlay .overlay-tabs button.active {
   background: #e2e8f0;
   color: #0284c7;
-}
-
-#pet-stats-overlay .setting-block,
-#pet-stats-overlay .setting-row {
-  align-items: center;
-  display: flex;
-  font-size: 11px;
-  justify-content: space-between;
-}
-
-#pet-stats-overlay .setting-block strong {
-  color: #0284c7;
-  text-transform: capitalize;
-}
-
-#pet-stats-overlay #care-intensity-slider {
-  accent-color: #0284c7;
-  margin: 8px 0 1px;
-  width: 100%;
-}
-
-#pet-stats-overlay .slider-markers {
-  color: #64748b;
-  display: grid;
-  font-size: 8px;
-  grid-template-columns: repeat(4, 1fr);
-  margin-bottom: 10px;
-  text-align: center;
-}
-
-#pet-stats-overlay .slider-markers span:first-child { text-align: left; }
-#pet-stats-overlay .slider-markers span:last-child { text-align: right; }
-
-#pet-stats-overlay .setting-row {
-  border-top: 1px solid rgb(51 65 85 / 10%);
-  min-height: 29px;
-}
-
-#pet-stats-overlay .setting-row input[type="checkbox"] {
-  accent-color: #0284c7;
-  height: 15px;
-  width: 15px;
-}
-
-#pet-stats-overlay .setting-row select {
-  background: white;
-  border: 1px solid #cbd5e1;
-  border-radius: 5px;
-  color: #334155;
-  font: inherit;
-  font-size: 10px;
-  padding: 2px 4px;
 }
 
 #pet-stats-overlay .overlay-error {
