@@ -7,6 +7,7 @@ import type {
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
 import type {
   ManagementTab,
+  CommerceTab,
   PetCommand,
   PetPatch,
   PetSnapshot,
@@ -25,7 +26,9 @@ export interface DesktopHomeBridge {
   getSnapshot(): Promise<PetSnapshot>;
   getSettings(): Promise<AppSettings>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
+  openCommerce(tab: CommerceTab): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
+  openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
@@ -52,8 +55,14 @@ const bridge: DesktopHomeBridge = Object.freeze({
   getActivityPage(request: ActivityPageRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.getActivityPage, request);
   },
+  openCommerce(tab: CommerceTab) {
+    return ipcRenderer.invoke(IPC_CHANNELS.openCommerce, tab);
+  },
   openManagement(tab: ManagementTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openManagement, tab);
+  },
+  openSettings() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openSettings);
   },
   onPatch(listener: (patch: PetPatch) => void) {
     const handler = (_event: Electron.IpcRendererEvent, patch: PetPatch) => {

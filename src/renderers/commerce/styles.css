@@ -1,0 +1,23 @@
+:root { color: #28251f; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; font-synthesis: none; }
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body { background: radial-gradient(circle at 85% 0%, rgb(250 190 83 / 24%), transparent 30%), #f4f1e8; }
+button { font: inherit; }
+.commerce-shell { margin: 0 auto; max-width: 760px; min-height: 100vh; padding: 28px 32px 36px; }
+.app-header { align-items: center; display: flex; justify-content: space-between; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 28px; letter-spacing: -0.03em; }
+h2 { font-size: 17px; }
+.eyebrow { color: #a16207; font-size: 10px; font-weight: 750; letter-spacing: 0.12em; margin-bottom: 3px; text-transform: uppercase; }
+.account-summary { align-items: center; background: rgb(255 255 255 / 70%); border: 1px solid rgb(120 113 98 / 20%); border-radius: 999px; display: flex; font-size: 12px; gap: 10px; padding: 8px 13px; }
+.tabs { border-bottom: 1px solid #d6d0c2; display: flex; gap: 24px; margin-top: 24px; }
+.tabs button { background: transparent; border: 0; border-bottom: 3px solid transparent; color: #716b60; cursor: pointer; font-weight: 700; padding: 10px 2px 9px; }
+.tabs button.selected { border-bottom-color: #d97706; color: #28251f; }
+.item-grid { display: grid; gap: 10px; margin-top: 20px; }
+.item-card { align-items: center; background: rgb(255 255 255 / 78%); border: 1px solid rgb(120 113 98 / 20%); border-radius: 14px; display: flex; gap: 18px; justify-content: space-between; padding: 15px 17px; }
+.item-copy > p:not(.eyebrow) { color: #625d54; font-size: 12px; margin-top: 5px; }
+.item-copy small { color: #787166; display: block; font-size: 11px; margin-top: 6px; }
+.item-card button { background: #d97706; border: 0; border-radius: 9px; color: white; cursor: pointer; font-weight: 750; min-width: 82px; padding: 10px 14px; }
+.item-card button:disabled { cursor: not-allowed; opacity: 0.45; }
+.error-banner { background: #fee2e2; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; margin-top: 14px; padding: 10px 12px; }
+.loading { align-items: center; display: flex; justify-content: center; min-height: 100vh; }

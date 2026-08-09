@@ -332,3 +332,4 @@ export interface PersonalLevelDefinition {
 }
 
 export type ManagementTab = "work" | "careers" | "memories";
+export type CommerceTab = "shop" | "inventory";

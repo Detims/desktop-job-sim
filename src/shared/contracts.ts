@@ -26,6 +26,7 @@ export type {
   JobDefinition,
   KnowledgeState,
   ManagementTab,
+  CommerceTab,
   NeedState,
   PetCommand,
   PetMutableState,
@@ -45,6 +46,10 @@ export type {
 } from "./pet-types.js";
 
 export const ManagementTabSchema = z.enum(["work", "careers", "memories"]);
+export const CommerceTabSchema = z.enum([
+  "shop",
+  "inventory",
+]);
 
 export const NeedStateSchema = z.object({
   energy: z.number().min(0).max(100),

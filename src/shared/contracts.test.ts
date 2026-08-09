@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { createInitialPetState } from "../simulation/pet-simulation.js";
-import { PetStateSchema } from "./contracts.js";
+import { CommerceTabSchema, PetStateSchema } from "./contracts.js";
 
 describe("pet-state contracts", () => {
+  it("accepts only supported Commerce tabs", () => {
+    expect(CommerceTabSchema.parse("shop")).toBe("shop");
+    expect(CommerceTabSchema.parse("inventory")).toBe("inventory");
+    expect(() => CommerceTabSchema.parse("settings")).toThrow();
+  });
+
   it("normalizes a legacy persisted job and missing knowledge and career state", () => {
     const legacy = createInitialPetState(0) as unknown as Record<string, unknown>;
     delete legacy.careers;

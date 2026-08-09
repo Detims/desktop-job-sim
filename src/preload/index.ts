@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import {
   type PetCommand,
+  type CommerceTab,
   type ManagementTab,
   type PetPatch,
   type PetSnapshot,
@@ -24,16 +25,18 @@ export interface DesktopPetBridge {
   getSnapshot(): Promise<PetSnapshot>;
   getSettings(): Promise<AppSettings>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
+  openCommerce(tab: CommerceTab): Promise<void>;
   openHome(): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
+  openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
-  updateSettings(command: UpdateSettingsCommand): Promise<AppSettings>;
   readonly runtime: {
     readonly bridgeVersion: 1;
     readonly platform: NodeJS.Platform;
   };
+  updateSettings(command: UpdateSettingsCommand): Promise<AppSettings>;
 }
 
 const bridge: DesktopPetBridge = Object.freeze({
@@ -58,11 +61,17 @@ const bridge: DesktopPetBridge = Object.freeze({
   getActivityPage(request: ActivityPageRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.getActivityPage, request);
   },
+  openCommerce(tab: CommerceTab) {
+    return ipcRenderer.invoke(IPC_CHANNELS.openCommerce, tab);
+  },
   openHome() {
     return ipcRenderer.invoke(IPC_CHANNELS.openHome);
   },
   openManagement(tab: ManagementTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openManagement, tab);
+  },
+  openSettings() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openSettings);
   },
   onPatch(listener: (patch: PetPatch) => void) {
     const handler = (_event: Electron.IpcRendererEvent, patch: PetPatch) => {
@@ -88,13 +97,13 @@ const bridge: DesktopPetBridge = Object.freeze({
     ipcRenderer.on(IPC_CHANNELS.activityEvent, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.activityEvent, handler);
   },
-  updateSettings(command: UpdateSettingsCommand) {
-    return ipcRenderer.invoke(IPC_CHANNELS.updateSettings, command);
-  },
   runtime: Object.freeze({
     bridgeVersion: 1,
     platform: process.platform,
   }),
+  updateSettings(command: UpdateSettingsCommand) {
+    return ipcRenderer.invoke(IPC_CHANNELS.updateSettings, command);
+  },
 });
 
 contextBridge.exposeInMainWorld("desktopPet", bridge);
