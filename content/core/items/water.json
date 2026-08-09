@@ -1,6 +1,7 @@
 {
   "id": "core:water",
   "name": "Water",
+  "category": "essential",
   "price": 3,
   "action": "drink",
   "generalXpReward": 1,

@@ -337,6 +337,7 @@ export const PetCommandSchema = z.discriminatedUnion("type", [
 
 export const CareItemDefinitionSchema = z.object({
   action: z.enum(["clean", "drink", "feed", "gift", "medicine"]),
+  category: z.enum(["essential", "premium", "relationship"]),
   generalXpReward: z.number().nonnegative(),
   id: z.string().min(1),
   name: z.string().min(1),
