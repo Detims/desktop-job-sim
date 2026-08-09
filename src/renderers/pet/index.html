@@ -45,6 +45,8 @@
               <button id="home-button" type="button">Home</button>
               <button id="work-menu-button" type="button">Work</button>
               <button id="careers-menu-button" type="button">Careers</button>
+              <button id="shop-window-button" type="button">Shop</button>
+              <button id="settings-window-button" type="button">Settings</button>
             </div>
             <div class="stat-line">
               <span id="wallet" aria-label="Wallet"></span>
@@ -71,48 +73,6 @@
             <p class="care-help">Pet, Talk, Comfort, and gifts remain available during major activities.</p>
           </div>
 
-          <div class="overlay-panel" data-overlay-panel="shop" hidden>
-            <div class="shop-heading"><strong>Essentials</strong><span id="shop-wallet"></span></div>
-            <div class="item-list">
-              <div><span>Water <small>+30 Thirst · 3c</small></span><button data-purchase-item="core:water" type="button">Buy</button></div>
-              <div><span>Basic Meal <small>+25 Hunger · 5c</small></span><button data-purchase-item="core:basic-meal" type="button">Buy</button></div>
-              <div><span>Deluxe Meal <small>+45 Hunger · 12c · Level 3</small></span><button data-purchase-item="core:deluxe-meal" type="button">Level 3</button></div>
-              <div><span>Soap <small>Clean Hygiene · 4c</small></span><button data-purchase-item="core:soap" type="button">Buy</button></div>
-              <div><span>Medicine <small>Half recovery · 20c</small></span><button data-purchase-item="core:medicine" type="button">Buy</button></div>
-              <div class="item-category">Gifts</div>
-              <div><span>Small Gift <small>+5 Affection · +0.5 Bond · 8c</small></span><button data-purchase-item="core:small-gift" type="button">Buy</button></div>
-              <div><span>Favorite Treat <small>+12 Affection · +1 Bond · 15c</small></span><button data-purchase-item="core:favorite-treat" type="button">Buy</button></div>
-            </div>
-          </div>
-
-          <div class="overlay-panel" data-overlay-panel="inventory" hidden>
-            <div class="item-list inventory-list">
-              <div><span>Water ×<strong data-item-quantity="core:water">0</strong></span><button data-use-item="core:water" type="button">Use</button></div>
-              <div><span>Basic Meal ×<strong data-item-quantity="core:basic-meal">0</strong></span><button data-use-item="core:basic-meal" type="button">Use</button></div>
-              <div><span>Deluxe Meal ×<strong data-item-quantity="core:deluxe-meal">0</strong></span><button data-use-item="core:deluxe-meal" type="button">Use</button></div>
-              <div><span>Soap ×<strong data-item-quantity="core:soap">0</strong></span><button data-use-item="core:soap" type="button">Use</button></div>
-              <div><span>Medicine ×<strong data-item-quantity="core:medicine">0</strong></span><button data-use-item="core:medicine" type="button">Use</button></div>
-              <div><span>Small Gift ×<strong data-item-quantity="core:small-gift">0</strong></span><button data-use-item="core:small-gift" type="button">Give</button></div>
-              <div><span>Favorite Treat ×<strong data-item-quantity="core:favorite-treat">0</strong></span><button data-use-item="core:favorite-treat" type="button">Give</button></div>
-            </div>
-          </div>
-
-          <div class="overlay-panel" data-overlay-panel="settings" hidden>
-            <label class="setting-block" for="care-intensity-slider">
-              <span>Care intensity</span>
-              <strong id="care-intensity-value">Balanced</strong>
-            </label>
-            <input id="care-intensity-slider" type="range" min="0" max="3" step="1" value="2" />
-            <div class="slider-markers" aria-hidden="true">
-              <span>Sandbox</span><span>Relaxed</span><span>Balanced</span><span>Demanding</span>
-            </div>
-            <label class="setting-row"><span>Always on top</span><input id="always-on-top" type="checkbox" /></label>
-            <label class="setting-row" for="activity-retention"><span>Activity history</span>
-              <select id="activity-retention"><option value="thirtyDays">30 days</option><option value="indefinite">Keep indefinitely</option></select>
-            </label>
-            <output id="settings-error" class="overlay-error" aria-live="polite"></output>
-          </div>
-
           <div class="overlay-panel activity-panel" data-overlay-panel="activity" hidden>
             <ol id="activity-list" aria-live="polite"></ol>
             <p id="activity-empty" class="empty-state">No recorded activity yet.</p>
@@ -124,9 +84,6 @@
         <nav class="overlay-tabs" aria-label="Pet menu tabs">
           <button class="active" data-overlay-tab="status" type="button">Status</button>
           <button data-overlay-tab="interact" type="button">Interact</button>
-          <button data-overlay-tab="shop" type="button">Shop</button>
-          <button data-overlay-tab="inventory" type="button">Inventory</button>
-          <button data-overlay-tab="settings" type="button">Settings</button>
           <button data-overlay-tab="activity" type="button">Activity</button>
         </nav>
       </section>

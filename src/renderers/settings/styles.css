@@ -1,0 +1,23 @@
+:root { color: #28251f; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; font-synthesis: none; }
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body { background: radial-gradient(circle at 85% 0%, rgb(250 190 83 / 24%), transparent 30%), #f4f1e8; }
+.settings-shell { margin: 0 auto; max-width: 680px; min-height: 100vh; padding: 30px 34px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 30px; letter-spacing: -0.03em; }
+h2 { font-size: 17px; }
+.eyebrow { color: #a16207; font-size: 11px; font-weight: 750; letter-spacing: 0.12em; margin-bottom: 3px; text-transform: uppercase; }
+.settings-card { background: rgb(255 255 255 / 76%); border: 1px solid rgb(120 113 98 / 20%); border-radius: 18px; box-shadow: 0 18px 45px rgb(60 49 30 / 10%); margin-top: 24px; padding: 22px; }
+.setting-heading, .setting-row { align-items: center; display: flex; justify-content: space-between; }
+.setting-heading p, .setting-row small { color: #716b60; display: block; font-size: 11px; margin-top: 4px; }
+.setting-heading > strong { color: #a16207; }
+input[type="range"] { accent-color: #d97706; margin: 20px 0 2px; width: 100%; }
+.markers { color: #787166; display: grid; font-size: 9px; grid-template-columns: repeat(4, 1fr); margin-bottom: 20px; text-align: center; }
+.markers span:first-child { text-align: left; }
+.markers span:last-child { text-align: right; }
+.setting-row { border-top: 1px solid #ded8cb; min-height: 66px; }
+.setting-row input[type="checkbox"] { accent-color: #d97706; height: 18px; width: 18px; }
+.setting-row select { background: white; border: 1px solid #c9c1b2; border-radius: 8px; color: #28251f; padding: 7px 9px; }
+.save-state { color: #716b60; font-size: 11px; margin-top: 12px; text-align: right; }
+.error-banner { background: #fee2e2; border: 1px solid #fecaca; border-radius: 10px; color: #991b1b; margin-top: 14px; padding: 10px 12px; }
+.loading { align-items: center; display: flex; justify-content: center; min-height: 100vh; }

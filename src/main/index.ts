@@ -16,9 +16,11 @@ import {
   SaveHomeLayoutCommandSchema,
 } from "../shared/home-contracts.js";
 import {
+  CommerceTabSchema,
   ManagementTabSchema,
   PetCommandSchema,
   WindowPointSchema,
+  type CommerceTab,
   type ManagementTab,
   type PetPatch,
   type WindowPoint,
@@ -60,6 +62,8 @@ import {
 let petWindow: BrowserWindow | null = null;
 let managementWindow: BrowserWindow | null = null;
 let homeWindow: BrowserWindow | null = null;
+let commerceWindow: BrowserWindow | null = null;
+let settingsWindow: BrowserWindow | null = null;
 let dragOffset: WindowPoint | null = null;
 let scheduler: NodeJS.Timeout | null = null;
 let lastTickAt = performance.now();
@@ -136,7 +140,8 @@ function isPetStateSender(
     isPetSender(event) ||
     (homeWindow !== null && event.sender === homeWindow.webContents) ||
     (managementWindow !== null &&
-      event.sender === managementWindow.webContents)
+      event.sender === managementWindow.webContents) ||
+    (commerceWindow !== null && event.sender === commerceWindow.webContents)
   );
 }
 
@@ -156,6 +161,9 @@ function publishPatch(patch: PetPatch): void {
   if (homeWindow !== null && !homeWindow.isDestroyed()) {
     homeWindow.webContents.send(IPC_CHANNELS.patch, patch);
   }
+  if (commerceWindow !== null && !commerceWindow.isDestroyed()) {
+    commerceWindow.webContents.send(IPC_CHANNELS.patch, patch);
+  }
 }
 
 function publishToPetSurfaces(channel: string, payload: unknown): void {
@@ -171,7 +179,9 @@ function publishActivityEvent(event: MeaningfulEvent): void {
 }
 
 function publishSettings(settings: AppSettings): void {
-  publishToPetSurfaces(IPC_CHANNELS.settingsChanged, settings);
+  if (settingsWindow !== null && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
+  }
 }
 
 function registerPetIpc(): void {
@@ -186,7 +196,9 @@ function registerPetIpc(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
-    if (!isPetSender(event) && !isHomeSender(event)) {
+    if (
+      (settingsWindow === null || event.sender !== settingsWindow.webContents)
+    ) {
       throw new Error("Unauthorized settings request.");
     }
     return requireSettingsController().getSnapshot();
@@ -209,7 +221,9 @@ function registerPetIpc(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.updateSettings, (event, input: unknown) => {
-    if (!isPetSender(event) && !isHomeSender(event)) {
+    if (
+      (settingsWindow === null || event.sender !== settingsWindow.webContents)
+    ) {
       throw new Error("Unauthorized settings update.");
     }
     try {
@@ -266,6 +280,16 @@ function registerPetIpc(): void {
   });
 
   ipcMain.handle(
+    IPC_CHANNELS.openCommerce,
+    (event, input: unknown) => {
+      if (!isPetSender(event) && !isHomeSender(event)) {
+        throw new Error("Unauthorized Commerce-window request.");
+      }
+      openCommerceWindow(CommerceTabSchema.parse(input));
+    },
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.openManagement,
     (event, input: unknown) => {
       if (!isPetSender(event) && !isHomeSender(event)) {
@@ -275,6 +299,13 @@ function registerPetIpc(): void {
       openManagementWindow(ManagementTabSchema.parse(input));
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.openSettings, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized Settings-window request.");
+    }
+    openSettingsWindow();
+  });
 
   ipcMain.handle(IPC_CHANNELS.openHome, (event) => {
     if (!isPetSender(event)) {
@@ -590,6 +621,71 @@ function createManagementWindow(initialTab: ManagementTab): BrowserWindow {
   return window;
 }
 
+function createCommerceWindow(initialTab: CommerceTab): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const window = new BrowserWindow({
+    backgroundColor: "#f4f1e8",
+    height: 590,
+    minHeight: 460,
+    minWidth: 560,
+    show: false,
+    title: "Desktop Pet Shop & Inventory",
+    width: 680,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(currentDirectory, "../preload/commerce.cjs"),
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+  window.webContents.once("did-finish-load", () => {
+    window.webContents.send(IPC_CHANNELS.commerceTab, initialTab);
+  });
+  window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (commerceWindow === window) commerceWindow = null;
+  });
+  void window.loadFile(
+    join(currentDirectory, "../renderer/commerce/index.html"),
+  );
+  return window;
+}
+
+function createSettingsWindow(): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const window = new BrowserWindow({
+    backgroundColor: "#f4f1e8",
+    height: 510,
+    minHeight: 430,
+    minWidth: 500,
+    show: false,
+    title: "Desktop Pet Settings",
+    width: 600,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(currentDirectory, "../preload/settings.cjs"),
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+  window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (settingsWindow === window) settingsWindow = null;
+  });
+  void window.loadFile(
+    join(currentDirectory, "../renderer/settings/index.html"),
+  );
+  return window;
+}
+
 function createHomeWindow(): BrowserWindow {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
   const preloadPath = join(currentDirectory, "../preload/home.cjs");
@@ -689,6 +785,27 @@ function openManagementWindow(tab: ManagementTab): void {
   managementWindow.show();
   managementWindow.focus();
   managementWindow.webContents.send(IPC_CHANNELS.managementTab, tab);
+}
+
+function openCommerceWindow(tab: CommerceTab): void {
+  if (commerceWindow === null || commerceWindow.isDestroyed()) {
+    commerceWindow = createCommerceWindow(tab);
+    return;
+  }
+  if (commerceWindow.isMinimized()) commerceWindow.restore();
+  commerceWindow.show();
+  commerceWindow.focus();
+  commerceWindow.webContents.send(IPC_CHANNELS.commerceTab, tab);
+}
+
+function openSettingsWindow(): void {
+  if (settingsWindow === null || settingsWindow.isDestroyed()) {
+    settingsWindow = createSettingsWindow();
+    return;
+  }
+  if (settingsWindow.isMinimized()) settingsWindow.restore();
+  settingsWindow.show();
+  settingsWindow.focus();
 }
 
 function openHomeWindow(): void {

@@ -68,6 +68,8 @@ const layoutStatus = requiredElement<HTMLOutputElement>("#layout-status");
 const desktopButton = requiredElement<HTMLButtonElement>("#desktop-button");
 const workMenuButton = requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-button");
+const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
+const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
@@ -277,6 +279,22 @@ async function openManagement(tab: ManagementTab): Promise<void> {
   }
 }
 
+async function openCommerce(): Promise<void> {
+  try {
+    await window.desktopHome.openCommerce("shop");
+  } catch (error: unknown) {
+    console.error("Unable to open Shop & Inventory from Home.", error);
+  }
+}
+
+async function openSettings(): Promise<void> {
+  try {
+    await window.desktopHome.openSettings();
+  } catch (error: unknown) {
+    console.error("Unable to open Settings from Home.", error);
+  }
+}
+
 window.desktopHome.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -432,6 +450,8 @@ discardButton.addEventListener("click", () => {
 desktopButton.addEventListener("click", () => window.desktopHome.requestDesktop());
 workMenuButton.addEventListener("click", () => void openManagement("work"));
 careersMenuButton.addEventListener("click", () => void openManagement("careers"));
+shopWindowButton.addEventListener("click", () => void openCommerce());
+settingsWindowButton.addEventListener("click", () => void openSettings());
 cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelActivity" }));
 
 renderState(currentState);

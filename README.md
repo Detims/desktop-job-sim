@@ -17,7 +17,7 @@ not implemented.
 
 - `src/main`: Electron main process and platform services.
 - `src/preload`: narrow typed renderer bridge.
-- `src/renderers`: PixiJS pet and React management renderer entry points.
+- `src/renderers`: PixiJS pet/Home and React management, commerce, and settings entry points.
 - `src/persistence`: SQLite repositories, recovery policy, and diagnostics.
 - `content/core`: built-in prototype assets and data.
 - `docs/architecture`: durable summaries of architectural constraints.
@@ -38,12 +38,14 @@ The runnable prototype is a secure, transparent Windows pet window with:
 - bounded cross-display positioning with a minimum visible grab area;
 - authoritative main-process hunger, thirst, mood, and energy simulation;
 - versioned renderer patches with full-snapshot resynchronization;
-- a right-click stats and subsystem-shortcut overlay;
+- a right-click Status, Interact, and Activity overlay with subsystem shortcuts;
 - a separate pinned work countdown with immediate Cancel; and
-- one lazy, single-instance React management window with Work and Careers tabs.
+- lazy, single-instance Management, Commerce, and Settings windows.
 
 Right-click the pet to toggle its stats overlay. Click outside the overlay to
-dismiss it. Work and Careers open as tabs in the same management window. During
+Outward shortcuts open Home, Work, Careers, Shop, and Settings. Work, Careers,
+and Memories share Management; Shop and Inventory share Commerce; Settings has
+its own window. These windows can coexist and reuse their existing instances. During
 work, the countdown and Cancel control remain visible independently, so the
 stats overlay can be opened and dismissed without disturbing the active job.
 

@@ -51,6 +51,8 @@ const workMenuButton =
 const careersMenuButton = requiredElement<HTMLButtonElement>(
   "#careers-menu-button",
 );
+const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
+const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
 const cancelWorkButton = requiredElement<HTMLButtonElement>(
   "#cancel-work-button",
 );
@@ -232,6 +234,22 @@ async function openHome(): Promise<void> {
   }
 }
 
+async function openCommerce(): Promise<void> {
+  try {
+    await window.desktopPet.openCommerce("shop");
+  } catch (error: unknown) {
+    console.error("Unable to open Shop & Inventory.", error);
+  }
+}
+
+async function openSettings(): Promise<void> {
+  try {
+    await window.desktopPet.openSettings();
+  } catch (error: unknown) {
+    console.error("Unable to open Settings.", error);
+  }
+}
+
 window.desktopPet.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -366,6 +384,8 @@ workMenuButton.addEventListener("click", () => {
 careersMenuButton.addEventListener("click", () => {
   void openManagement("careers");
 });
+shopWindowButton.addEventListener("click", () => void openCommerce());
+settingsWindowButton.addEventListener("click", () => void openSettings());
 cancelWorkButton.addEventListener("click", () => {
   void dispatch({ type: "cancelActivity" });
 });
