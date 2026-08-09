@@ -3,46 +3,18 @@ import { createRoot } from "react-dom/client";
 
 import { CARE_ITEMS } from "../../domain/care-items.js";
 import { personalLevel } from "../../domain/personal-growth.js";
-import { DAILY_BOND_CAP, localDateKey } from "../../domain/relationship.js";
 import type {
-  CareItemDefinition,
   CommerceTab,
   PetCommand,
   PetState,
 } from "../../shared/pet-types.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
+import {
+  itemDescription,
+  purchaseBlockedReason,
+  useBlockedReason,
+} from "./commerce-model.js";
 import "./styles.css";
-
-function itemDescription(item: CareItemDefinition): string {
-  if (item.action === "feed") return `Restores ${item.restoreAmount} Hunger`;
-  if (item.action === "drink") return `Restores ${item.restoreAmount} Thirst`;
-  if (item.action === "clean") return "Restores Hygiene to Clean";
-  if (item.action === "medicine") return "Halves Serious Illness recovery time";
-  return `+${item.relationshipAffection} Affection · +${item.relationshipBond} Bond`;
-}
-
-function useBlockedReason(state: PetState, item: CareItemDefinition): string | null {
-  if ((state.household.inventory[item.id] ?? 0) < 1) return "Not in inventory";
-  if (item.action === "feed" && state.needs.hunger >= 100) return "Hunger is already full";
-  if (item.action === "drink" && state.needs.thirst >= 100) return "Thirst is already full";
-  if (item.action === "clean" && state.care.hygiene >= 100) return "Hygiene is already Clean";
-  if (item.action === "medicine") {
-    if (state.care.seriousIllness === null) return "Only usable during Serious Illness";
-    if (state.care.seriousIllness.medicineUsed) return "Medicine already used for this illness";
-  }
-  if (item.action === "gift") {
-    const today = localDateKey(Date.now());
-    const bondUsed =
-      state.relationship.bondAwardDate === "" || today > state.relationship.bondAwardDate
-        ? 0
-        : state.relationship.bondAwardedToday;
-    if (
-      state.relationship.affection >= 100 &&
-      (state.relationship.bond >= 100 || bondUsed >= DAILY_BOND_CAP)
-    ) return "No relationship benefit available right now";
-  }
-  return null;
-}
 
 function App() {
   const [activeTab, setActiveTab] = useState<CommerceTab>("shop");
@@ -121,9 +93,8 @@ function App() {
       {error !== null && <div className="error-banner" role="alert">{error}</div>}
       <section className="item-grid" aria-labelledby={`${activeTab}-tab`}>
         {CARE_ITEMS.map((item) => {
-          const levelLocked = level < item.requiredLevel;
-          const bondLocked = state.relationship.bond < item.requiredBond;
           const quantity = state.household.inventory[item.id] ?? 0;
+          const purchaseBlock = purchaseBlockedReason(state, item);
           const blockedReason = useBlockedReason(state, item);
           const isBusy = busyItem === item.id;
           return (
@@ -142,12 +113,12 @@ function App() {
               </div>
               {activeTab === "shop" ? (
                 <button
-                  disabled={isBusy || levelLocked || bondLocked || state.household.wallet < item.price}
+                  disabled={isBusy || purchaseBlock !== null}
                   onClick={() => void dispatch({ itemId: item.id, type: "purchaseItem" }, item.id)}
-                  title={levelLocked ? `Requires Level ${item.requiredLevel}` : bondLocked ? `Requires Bond ${item.requiredBond}` : ""}
+                  title={purchaseBlock ?? ""}
                   type="button"
                 >
-                  {levelLocked ? `Level ${item.requiredLevel}` : bondLocked ? `Bond ${item.requiredBond}` : isBusy ? "Buying…" : "Buy"}
+                  {purchaseBlock?.startsWith("Requires ") ? purchaseBlock.replace("Requires ", "") : isBusy ? "Buying…" : "Buy"}
                 </button>
               ) : (
                 <button
