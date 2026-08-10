@@ -24,6 +24,13 @@ export const IPC_CHANNELS = Object.freeze({
   settingsChanged: "settings:changed",
   updateSettings: "settings:update",
   activityEvent: "activity:event",
+  characterChanged: "character:changed",
+  characterCommand: "character:command",
+  characterGetLibrary: "character:get-library",
+  characterGetVisual: "character:get-visual",
+  characterLibraryChanged: "character:library-changed",
+  characterSelectImport: "character:select-import",
+  openCharacters: "character:open",
   requestDesktop: "home:request-desktop",
   saveHomeLayout: "home:save-layout",
 });
