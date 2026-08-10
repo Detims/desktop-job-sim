@@ -50,6 +50,7 @@ export type CareItemAction = "clean" | "drink" | "feed" | "gift" | "medicine";
 
 export interface CareItemDefinition {
   action: CareItemAction;
+  category: "essential" | "premium" | "relationship";
   generalXpReward: number;
   id: string;
   name: string;

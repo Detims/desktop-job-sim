@@ -1,6 +1,7 @@
 {
   "id": "core:favorite-treat",
   "name": "Favorite Treat",
+  "category": "relationship",
   "action": "gift",
   "price": 15,
   "generalXpReward": 1,

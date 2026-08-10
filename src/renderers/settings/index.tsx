@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import type {
   ActivityRetention,
   AppSettings,
+  AutonomyMode,
   CareIntensity,
   SettingsUpdate,
 } from "../../shared/settings-activity-types.js";
@@ -15,6 +16,22 @@ const CARE_LEVELS: readonly CareIntensity[] = [
   "balanced",
   "demanding",
 ];
+
+const AUTONOMY_LEVELS: readonly AutonomyMode[] = [
+  "manual",
+  "ownedSupplies",
+  "carefulSpending",
+  "independent",
+];
+
+const AUTONOMY_LABELS: Readonly<Record<AutonomyMode, string>> = {
+  manual: "Manual",
+  ownedSupplies: "Owned Supplies",
+  carefulSpending: "Careful Spending",
+  independent: "Independent",
+};
+
+const OFFLINE_REWARD_LEVELS = [0, 0.25, 0.5, 0.75, 1] as const;
 
 function label(value: CareIntensity): string {
   return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
@@ -84,6 +101,69 @@ function App() {
         />
         <div className="markers" aria-hidden="true">
           {CARE_LEVELS.map((level) => <span key={level}>{label(level)}</span>)}
+        </div>
+        <div className="setting-divider" />
+        <div className="setting-heading">
+          <div><h2>Autonomy</h2><p>Controls online self-care, essential spending, and safe subsistence work.</p></div>
+          <strong>{AUTONOMY_LABELS[settings.autonomyMode]}</strong>
+        </div>
+        <input
+          aria-label="Autonomy mode"
+          disabled={saving}
+          max="3"
+          min="0"
+          onChange={(event) => {
+            const autonomyMode = AUTONOMY_LEVELS[Number(event.currentTarget.value)] ?? "manual";
+            void update({ autonomyMode, type: "setAutonomyMode" });
+          }}
+          step="1"
+          type="range"
+          value={AUTONOMY_LEVELS.indexOf(settings.autonomyMode)}
+        />
+        <div className="markers autonomy-markers" aria-hidden="true">
+          {AUTONOMY_LEVELS.map((mode) => <span key={mode}>{AUTONOMY_LABELS[mode]}</span>)}
+        </div>
+        <label className="setting-row">
+          <span><strong>Protected coin reserve</strong><small>Essential care spends below this only during a critical need or Serious Illness.</small></span>
+          <input
+            aria-label="Protected coin reserve"
+            disabled={saving}
+            max="1000"
+            min="0"
+            onChange={(event) => void update({ autonomyReserve: Number(event.currentTarget.value), type: "setAutonomyReserve" })}
+            step="1"
+            type="number"
+            value={settings.autonomyReserve}
+          />
+        </label>
+        <label className="setting-row">
+          <span><strong>Offline autonomy</strong><small>Allow the selected autonomy mode to provide bounded care while the app is closed.</small></span>
+          <input
+            checked={settings.offlineAutonomyEnabled}
+            disabled={saving}
+            onChange={(event) => void update({ offlineAutonomyEnabled: event.currentTarget.checked, type: "setOfflineAutonomyEnabled" })}
+            type="checkbox"
+          />
+        </label>
+        <div className="setting-heading offline-rewards-heading">
+          <div><h2>Offline work rewards</h2><p>Applies to coins, General XP, mastery, and completion bonuses.</p></div>
+          <strong>{settings.offlineRewardMultiplier * 100}%</strong>
+        </div>
+        <input
+          aria-label="Offline work rewards"
+          disabled={saving}
+          max="4"
+          min="0"
+          onChange={(event) => {
+            const offlineRewardMultiplier = OFFLINE_REWARD_LEVELS[Number(event.currentTarget.value)] ?? 0.5;
+            void update({ offlineRewardMultiplier, type: "setOfflineRewardMultiplier" });
+          }}
+          step="1"
+          type="range"
+          value={OFFLINE_REWARD_LEVELS.indexOf(settings.offlineRewardMultiplier as typeof OFFLINE_REWARD_LEVELS[number])}
+        />
+        <div className="markers offline-reward-markers" aria-hidden="true">
+          {OFFLINE_REWARD_LEVELS.map((value) => <span key={value}>{value * 100}%</span>)}
         </div>
         <label className="setting-row">
           <span><strong>Always on top</strong><small>Keep the desktop pet above ordinary windows.</small></span>

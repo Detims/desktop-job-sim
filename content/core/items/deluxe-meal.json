@@ -1,6 +1,7 @@
 {
   "id": "core:deluxe-meal",
   "name": "Deluxe Meal",
+  "category": "premium",
   "price": 12,
   "action": "feed",
   "generalXpReward": 1,

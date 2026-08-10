@@ -1,6 +1,7 @@
 {
   "id": "core:medicine",
   "name": "Medicine",
+  "category": "essential",
   "price": 20,
   "action": "medicine",
   "generalXpReward": 2,

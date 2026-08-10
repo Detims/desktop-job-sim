@@ -6,6 +6,7 @@ export type {
   ActivityPageRequest,
   ActivityRetention,
   AppSettings,
+  AutonomyMode,
   CareIntensity,
   EventDetailValue,
   MeaningfulEvent,
@@ -24,16 +25,39 @@ export const CareIntensitySchema = z.enum([
 
 export const ActivityRetentionSchema = z.enum(["thirtyDays", "indefinite"]);
 
+export const OfflineRewardMultiplierSchema = z.union([
+  z.literal(0),
+  z.literal(0.25),
+  z.literal(0.5),
+  z.literal(0.75),
+  z.literal(1),
+]);
+
+export const AutonomyModeSchema = z.enum([
+  "manual",
+  "ownedSupplies",
+  "carefulSpending",
+  "independent",
+]);
+
 export const AppSettingsSchema = z.object({
   activityRetention: ActivityRetentionSchema,
   alwaysOnTop: z.boolean(),
+  autonomyMode: AutonomyModeSchema,
+  autonomyReserve: z.number().int().min(0).max(1_000),
   careIntensity: CareIntensitySchema,
+  offlineAutonomyEnabled: z.boolean(),
+  offlineRewardMultiplier: OfflineRewardMultiplierSchema,
   settingsVersion: z.number().int().nonnegative(),
 });
 
 export const SettingsUpdateSchema = z.discriminatedUnion("type", [
   z.object({ careIntensity: CareIntensitySchema, type: z.literal("setCareIntensity") }),
   z.object({ alwaysOnTop: z.boolean(), type: z.literal("setAlwaysOnTop") }),
+  z.object({ autonomyMode: AutonomyModeSchema, type: z.literal("setAutonomyMode") }),
+  z.object({ autonomyReserve: z.number().int().min(0).max(1_000), type: z.literal("setAutonomyReserve") }),
+  z.object({ offlineAutonomyEnabled: z.boolean(), type: z.literal("setOfflineAutonomyEnabled") }),
+  z.object({ offlineRewardMultiplier: OfflineRewardMultiplierSchema, type: z.literal("setOfflineRewardMultiplier") }),
   z.object({ activityRetention: ActivityRetentionSchema, type: z.literal("setActivityRetention") }),
 ]);
 
@@ -50,6 +74,11 @@ export const MeaningfulEventTypeSchema = z.enum([
   "activity.shutdown_settled",
   "activity.sleep_settled",
   "activity.crash_recovered",
+  "autonomy.action",
+  "autonomy.blocked",
+  "offline.summary",
+  "offline.action",
+  "offline.blocked",
   "exam.failed",
   "exam.passed",
   "career.enrolled",
@@ -71,6 +100,10 @@ export const MeaningfulEventTypeSchema = z.enum([
   "relationship.milestone",
   "startup.recovered",
   "settings.care_intensity_changed",
+  "settings.autonomy_mode_changed",
+  "settings.autonomy_reserve_changed",
+  "settings.offline_autonomy_changed",
+  "settings.offline_reward_changed",
   "settings.always_on_top_changed",
   "settings.retention_changed",
 ]);

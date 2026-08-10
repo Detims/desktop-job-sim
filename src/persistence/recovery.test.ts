@@ -50,6 +50,44 @@ describe("pet-state recovery", () => {
     expect(demanding.state.relationship.bond).toBe(0);
   });
 
+  it("runs configured offline autonomy and returns aggregated Activity drafts", () => {
+    const initial = createInitialPetState(0);
+    const recovered = recoverPetState(
+      {
+        ...initial,
+        household: { inventory: { "core:water": 2 }, wallet: 0 },
+        needs: { ...initial.needs, thirst: 25 },
+      },
+      0,
+      60_000,
+      true,
+      1,
+      {
+        activityBonuses: { restRecovery: 0, studyGain: 0 },
+        enabled: true,
+        mode: "ownedSupplies",
+        reserveCoins: 10,
+        rewardMultiplier: 0.5,
+      },
+    );
+
+    expect(recovered.state.household.inventory["core:water"]).toBe(1);
+    expect(recovered.returnSummary.itemsUsed).toEqual([
+      { count: 1, itemId: "core:water", name: "Water" },
+    ]);
+    expect(recovered.offlineEvents.map(({ type }) => type)).toEqual([
+      "offline.summary",
+      "offline.action",
+    ]);
+  });
+
+  it("does not produce a return event for a short absence without a decision", () => {
+    const recovered = recoverPetState(createInitialPetState(0), 0, 30_000, true);
+
+    expect(recovered.returnSummary.shouldShow).toBe(false);
+    expect(recovered.offlineEvents).toEqual([]);
+  });
+
   it("applies at most eight hours of offline decay at half rate", () => {
     const initial = { ...createInitialPetState(1_000), generalXp: 49 };
     const recovered = recoverPetState(

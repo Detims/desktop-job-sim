@@ -17,17 +17,21 @@ import type {
   ActivityPageRequest,
   MeaningfulEvent,
 } from "../shared/settings-activity-types.js";
+import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
 
 export interface DesktopHomeBridge {
   dispatch(command: PetCommand): Promise<PetSnapshot>;
   getLayout(): Promise<HomeLayoutSnapshot>;
   getSnapshot(): Promise<PetSnapshot>;
+  getReturnSummary(): Promise<OfflineReturnSummary | null>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
   openCommerce(tab: CommerceTab): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
   openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
+  onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
+  dismissReturnSummary(): Promise<void>;
   ready(): void;
   requestDesktop(): void;
   saveLayout(command: SaveHomeLayoutCommand): Promise<HomeLayoutSnapshot>;
@@ -43,6 +47,12 @@ const bridge: DesktopHomeBridge = Object.freeze({
   },
   getSnapshot() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSnapshot);
+  },
+  getReturnSummary() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getReturnSummary);
+  },
+  dismissReturnSummary() {
+    return ipcRenderer.invoke(IPC_CHANNELS.dismissReturnSummary);
   },
   getActivityPage(request: ActivityPageRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.getActivityPage, request);
@@ -81,6 +91,13 @@ const bridge: DesktopHomeBridge = Object.freeze({
   },
   setDirty(dirty: boolean) {
     ipcRenderer.send(IPC_CHANNELS.homeDirty, dirty);
+  },
+  onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, summary: OfflineReturnSummary | null) => {
+      listener(summary);
+    };
+    ipcRenderer.on(IPC_CHANNELS.returnSummaryChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.returnSummaryChanged, handler);
   },
 });
 

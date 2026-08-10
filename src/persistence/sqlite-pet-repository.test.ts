@@ -135,7 +135,7 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(9);
+    expect(version.user_version).toBe(11);
     migrated.close();
   });
 
@@ -145,7 +145,11 @@ describe("SqlitePetRepository", () => {
     expect(repository.loadSettings()).toEqual({
       activityRetention: "thirtyDays",
       alwaysOnTop: true,
+      autonomyMode: "manual",
+      autonomyReserve: 10,
       careIntensity: "balanced",
+      offlineAutonomyEnabled: false,
+      offlineRewardMultiplier: 0.5,
       settingsVersion: 0,
     });
 

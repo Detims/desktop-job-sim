@@ -1,6 +1,7 @@
 {
   "id": "core:small-gift",
   "name": "Small Gift",
+  "category": "relationship",
   "action": "gift",
   "price": 8,
   "generalXpReward": 1,

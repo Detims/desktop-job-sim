@@ -1,6 +1,7 @@
 {
   "id": "core:basic-meal",
   "name": "Basic Meal",
+  "category": "essential",
   "price": 5,
   "action": "feed",
   "generalXpReward": 1,

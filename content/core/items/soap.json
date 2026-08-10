@@ -1,6 +1,7 @@
 {
   "id": "core:soap",
   "name": "Soap",
+  "category": "essential",
   "price": 4,
   "action": "clean",
   "generalXpReward": 1,

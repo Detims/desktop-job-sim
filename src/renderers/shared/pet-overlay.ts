@@ -4,6 +4,7 @@ import type {
   MeaningfulEvent,
 } from "../../shared/settings-activity-types.js";
 import type { PetCommand, PetSnapshot, PetState } from "../../shared/pet-types.js";
+import type { OfflineReturnSummary } from "../../shared/offline-summary-types.js";
 import { CARE_ITEMS } from "../../domain/care-items.js";
 import { hygieneBand, stressBand } from "../../domain/care.js";
 import { DAILY_BOND_CAP, localDateKey } from "../../domain/relationship.js";
@@ -20,9 +21,12 @@ type OverlayTab =
   | "status";
 
 export interface PetOverlayBridge {
+  dismissReturnSummary(): Promise<void>;
   dispatch(command: PetCommand): Promise<PetSnapshot>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
+  getReturnSummary(): Promise<OfflineReturnSummary | null>;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
+  onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
 }
 
 export interface PetOverlayController {
@@ -37,6 +41,39 @@ function requiredElement<T extends HTMLElement>(selector: string): T {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The change could not be saved.";
+}
+
+function signed(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+export function offlineSummaryLines(summary: OfflineReturnSummary): string[] {
+  const minutes = Math.max(1, Math.round(summary.elapsedMs / 60_000));
+  const needs = [
+    `Food ${signed(summary.needsAfter.hunger - summary.needsBefore.hunger)}`,
+    `Water ${signed(summary.needsAfter.thirst - summary.needsBefore.thirst)}`,
+    `Energy ${signed(summary.needsAfter.energy - summary.needsBefore.energy)}`,
+    `Mood ${signed(summary.needsAfter.mood - summary.needsBefore.mood)}`,
+  ];
+  const lines = [`Away for ${minutes} minute${minutes === 1 ? "" : "s"}.`, needs.join(" | ")];
+  if (summary.itemsUsed.length > 0) {
+    lines.push(`Used: ${summary.itemsUsed.map((item) => `${item.name} x${item.count}`).join(", ")}`);
+  }
+  if (summary.itemsPurchased.length > 0) {
+    lines.push(`Purchased: ${summary.itemsPurchased.map((item) => `${item.name} x${item.count}`).join(", ")}`);
+  }
+  if (summary.jobsCompleted > 0 || summary.restsCompleted > 0) {
+    lines.push(`Activities: ${summary.jobsCompleted} job(s), ${summary.restsCompleted} Rest session(s).`);
+  }
+  if (summary.coinsEarned > 0 || summary.coinsSpent > 0 || summary.generalXpEarned > 0 || summary.masteryEarned > 0) {
+    lines.push(
+      `Economy: +${summary.coinsEarned.toFixed(1)}c, -${summary.coinsSpent.toFixed(1)}c, ` +
+      `+${summary.generalXpEarned.toFixed(1)} XP, +${summary.masteryEarned.toFixed(1)} mastery.`,
+    );
+  }
+  if (summary.illness !== null) lines.push(`Serious Illness ${summary.illness}.`);
+  lines.push(...summary.blocked.map((message) => `Blocked: ${message}`));
+  return lines;
 }
 
 export async function initializePetOverlay(
@@ -73,6 +110,47 @@ export async function initializePetOverlay(
   const useButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>("[data-use-item]"),
   );
+  const returnPanel = document.createElement("aside");
+  returnPanel.className = "return-summary-panel";
+  returnPanel.hidden = true;
+  returnPanel.setAttribute("aria-label", "While you were away");
+  returnPanel.setAttribute("role", "region");
+  const returnHeader = document.createElement("div");
+  const returnTitle = document.createElement("strong");
+  returnTitle.textContent = "While you were away";
+  const dismissReturn = document.createElement("button");
+  dismissReturn.type = "button";
+  dismissReturn.textContent = "Dismiss";
+  returnHeader.append(returnTitle, dismissReturn);
+  const returnList = document.createElement("ul");
+  returnPanel.append(returnHeader, returnList);
+  requiredElement<HTMLElement>("#pet-stats-overlay").before(returnPanel);
+
+  function renderReturnSummary(summary: OfflineReturnSummary | null): void {
+    returnPanel.hidden = summary === null;
+    returnList.replaceChildren(
+      ...(summary === null ? [] : offlineSummaryLines(summary).map((line) => {
+        const item = document.createElement("li");
+        item.textContent = line;
+        return item;
+      })),
+    );
+  }
+
+  dismissReturn.addEventListener("click", async () => {
+    try {
+      await bridge.dismissReturnSummary();
+      renderReturnSummary(null);
+    } catch (error: unknown) {
+      careError.value = errorMessage(error);
+    }
+  });
+  bridge.onReturnSummaryChanged(renderReturnSummary);
+  try {
+    renderReturnSummary(await bridge.getReturnSummary());
+  } catch (error: unknown) {
+    careError.value = errorMessage(error);
+  }
 
   let selectedTab: OverlayTab = "status";
   let activityLoaded = false;

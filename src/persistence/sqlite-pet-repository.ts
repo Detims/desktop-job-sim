@@ -37,7 +37,7 @@ import type { SettingsActivityRepository } from "./settings-activity-repository.
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -64,7 +64,11 @@ interface HomeLayoutRow {
 interface SettingsRow {
   activity_retention: string;
   always_on_top: number;
+  autonomy_mode: string;
+  autonomy_reserve: number;
   care_intensity: string;
+  offline_autonomy_enabled: number;
+  offline_reward_multiplier: number;
   settings_version: number;
 }
 
@@ -229,7 +233,9 @@ export class SqlitePetRepository
     try {
       const row = this.database
         .prepare(
-          `SELECT care_intensity, always_on_top, activity_retention, settings_version
+          `SELECT care_intensity, always_on_top, autonomy_mode, autonomy_reserve,
+                  offline_autonomy_enabled, offline_reward_multiplier,
+                  activity_retention, settings_version
              FROM app_settings
             WHERE id = 1`,
         )
@@ -240,7 +246,11 @@ export class SqlitePetRepository
       return AppSettingsSchema.parse({
         activityRetention: row.activity_retention,
         alwaysOnTop: row.always_on_top === 1,
+        autonomyMode: row.autonomy_mode,
+        autonomyReserve: row.autonomy_reserve,
         careIntensity: row.care_intensity,
+        offlineAutonomyEnabled: row.offline_autonomy_enabled === 1,
+        offlineRewardMultiplier: row.offline_reward_multiplier,
         settingsVersion: row.settings_version,
       });
     } catch (error: unknown) {
@@ -497,12 +507,18 @@ export class SqlitePetRepository
       this.database
         .prepare(
           `UPDATE app_settings
-              SET care_intensity = ?, always_on_top = ?, activity_retention = ?, settings_version = ?
+              SET care_intensity = ?, always_on_top = ?, autonomy_mode = ?,
+                  autonomy_reserve = ?, offline_autonomy_enabled = ?,
+                  offline_reward_multiplier = ?, activity_retention = ?, settings_version = ?
             WHERE id = 1`,
         )
         .run(
           validated.careIntensity,
           validated.alwaysOnTop ? 1 : 0,
+          validated.autonomyMode,
+          validated.autonomyReserve,
+          validated.offlineAutonomyEnabled ? 1 : 0,
+          validated.offlineRewardMultiplier,
           validated.activityRetention,
           validated.settingsVersion,
         );
@@ -731,6 +747,25 @@ export class SqlitePetRepository
       if (fromVersion < 9) {
         // Personal Growth remains schema-controlled JSON inside pet_runtime.
         // Legacy saves receive zero General XP and retain all prior progress.
+      }
+      if (fromVersion < 10) {
+        database.exec(`
+          ALTER TABLE app_settings
+            ADD COLUMN autonomy_mode TEXT NOT NULL DEFAULT 'manual';
+          ALTER TABLE app_settings
+            ADD COLUMN autonomy_reserve INTEGER NOT NULL DEFAULT 10
+              CHECK (autonomy_reserve BETWEEN 0 AND 1000);
+        `);
+      }
+      if (fromVersion < 11) {
+        database.exec(`
+          ALTER TABLE app_settings
+            ADD COLUMN offline_autonomy_enabled INTEGER NOT NULL DEFAULT 0
+              CHECK (offline_autonomy_enabled IN (0, 1));
+          ALTER TABLE app_settings
+            ADD COLUMN offline_reward_multiplier REAL NOT NULL DEFAULT 0.5
+              CHECK (offline_reward_multiplier IN (0, 0.25, 0.5, 0.75, 1));
+        `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
       database.exec("COMMIT");
