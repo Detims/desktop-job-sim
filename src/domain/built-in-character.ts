@@ -13,11 +13,11 @@ export const BUILT_IN_CHARACTER_MANIFEST: CharacterPackManifest = Object.freeze(
     idle: { fps: 6, frames: [0, 1, 2, 3], loop: true },
   },
   canvas: {
-    anchors: { feet: { x: 64, y: 128 } },
-    height: 128,
-    hitbox: { height: 112, width: 96, x: 16, y: 16 },
-    pivot: { x: 64, y: 128 },
-    width: 128,
+    anchors: { feet: { x: 271.5, y: 724 } },
+    height: 724,
+    hitbox: { height: 624, width: 343, x: 100, y: 100 },
+    pivot: { x: 271.5, y: 724 },
+    width: 543,
   },
   engineVersion: 1,
   fallbacks: Object.fromEntries(
@@ -35,8 +35,8 @@ export const BUILT_IN_CHARACTER_MANIFEST: CharacterPackManifest = Object.freeze(
   schemaVersion: 1,
   spritesheet: {
     frameCount: 4,
-    frameHeight: 128,
-    frameWidth: 128,
+    frameHeight: 724,
+    frameWidth: 543,
     path: "idle.png",
     scaleMode: "nearest",
   },
