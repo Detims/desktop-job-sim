@@ -15,6 +15,7 @@ import type {
   MeaningfulEvent,
 } from "../shared/settings-activity-types.js";
 import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
+import type { CharacterVisual } from "../shared/character-types.js";
 
 export interface DesktopPetBridge {
   beginDrag(point: WindowPoint): void;
@@ -24,12 +25,15 @@ export interface DesktopPetBridge {
   getSnapshot(): Promise<PetSnapshot>;
   getReturnSummary(): Promise<OfflineReturnSummary | null>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
+  getCharacterVisual(): Promise<CharacterVisual>;
   openCommerce(tab: CommerceTab): Promise<void>;
+  openCharacters(): Promise<void>;
   openHome(): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
   openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
+  onCharacterChanged(listener: (visual: CharacterVisual) => void): () => void;
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
   dismissReturnSummary(): Promise<void>;
   readonly runtime: {
@@ -63,8 +67,14 @@ const bridge: DesktopPetBridge = Object.freeze({
   getActivityPage(request: ActivityPageRequest) {
     return ipcRenderer.invoke(IPC_CHANNELS.getActivityPage, request);
   },
+  getCharacterVisual() {
+    return ipcRenderer.invoke(IPC_CHANNELS.characterGetVisual);
+  },
   openCommerce(tab: CommerceTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openCommerce, tab);
+  },
+  openCharacters() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openCharacters);
   },
   openHome() {
     return ipcRenderer.invoke(IPC_CHANNELS.openHome);
@@ -91,6 +101,13 @@ const bridge: DesktopPetBridge = Object.freeze({
     };
     ipcRenderer.on(IPC_CHANNELS.activityEvent, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.activityEvent, handler);
+  },
+  onCharacterChanged(listener: (visual: CharacterVisual) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, visual: CharacterVisual) => {
+      listener(visual);
+    };
+    ipcRenderer.on(IPC_CHANNELS.characterChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.characterChanged, handler);
   },
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void) {
     const handler = (_event: Electron.IpcRendererEvent, summary: OfflineReturnSummary | null) => {

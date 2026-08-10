@@ -1,12 +1,8 @@
 import {
-  AnimatedSprite,
   Application,
-  Assets,
   Container,
   Graphics,
-  Rectangle,
   Text,
-  Texture,
 } from "pixi.js";
 
 import spriteSheetUrl from "../../../content/core/characters/prototype-cat/idle.png";
@@ -28,13 +24,13 @@ import type {
 } from "../../shared/pet-types.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
+import { CharacterVisualRenderer } from "../shared/character-visual.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
 
 const ROOM_WIDTH = 720;
 const ROOM_HEIGHT = 480;
 const CELL_SIZE = ROOM_WIDTH / HOME_GRID_COLUMNS;
-const FRAME_COUNT = 4;
 const PET_X = ROOM_WIDTH / 2;
 const PET_BOTTOM = ROOM_HEIGHT - 18;
 const PET_HIT_WIDTH = 130;
@@ -70,6 +66,7 @@ const workMenuButton = requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-button");
 const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
 const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
+const charactersWindowButton = requiredElement<HTMLButtonElement>("#characters-window-button");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
@@ -175,35 +172,30 @@ function renderFurniture(invalidId: string | null = null): void {
   }
 }
 
-let petVisual: AnimatedSprite | Graphics;
-try {
-  const sheet = await Assets.load<Texture>(spriteSheetUrl);
-  const frameWidth = Math.floor(sheet.width / FRAME_COUNT);
-  const frames = Array.from(
-    { length: FRAME_COUNT },
-    (_, index) =>
-      new Texture({
-        frame: new Rectangle(frameWidth * index, 0, frameWidth, sheet.height),
-        source: sheet.source,
-      }),
-  );
-  const sprite = new AnimatedSprite(frames);
-  sprite.anchor.set(0.5, 1);
-  sprite.animationSpeed = 0.035;
-  sprite.scale.set(Math.min(130 / frameWidth, 125 / sheet.height));
-  sprite.play();
-  petVisual = sprite;
-} catch (error: unknown) {
-  console.error("Unable to load the Home pet sprite.", error);
-  petVisual = new Graphics()
+const characterVisual = new CharacterVisualRenderer(pixi, {
+  builtInAssetUrl: spriteSheetUrl,
+  fallback: () => new Graphics()
     .circle(0, -50, 48)
     .fill({ color: 0xf59e0b })
     .circle(-17, -58, 6)
     .circle(17, -58, 6)
-    .fill({ color: 0x342018 });
+    .fill({ color: 0x342018 }),
+  maxHeight: PET_HIT_HEIGHT,
+  maxWidth: PET_HIT_WIDTH,
+  x: PET_X,
+  y: PET_BOTTOM,
+});
+try {
+  await characterVisual.replace(await window.desktopHome.getCharacterVisual());
+} catch (error: unknown) {
+  console.error("Unable to load the selected Home pet sprite.", error);
 }
-petVisual.position.set(PET_X, PET_BOTTOM);
-pixi.stage.addChild(petVisual);
+window.desktopHome.onCharacterChanged((visual) => {
+  void characterVisual.replace(visual).then(
+    () => renderState(currentState),
+    (error: unknown) => console.error("Unable to apply the selected Home character.", error),
+  );
+});
 renderFurniture();
 
 function renderState(state: PetState): void {
@@ -221,13 +213,17 @@ function renderState(state: PetState): void {
     discouraged === undefined
       ? ""
       : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
-  petVisual.tint = state.presentation === "petted" || state.presentation === "playing"
-    ? 0xffd6e7
-    : state.presentation === "working"
-      ? 0xfff1b8
-      : state.presentation === "ill"
-        ? 0xb7d7c6
-        : 0xffffff;
+  characterVisual.setPresentation(state.presentation);
+  const petVisual = characterVisual.display;
+  if (petVisual !== null) {
+    petVisual.tint = state.presentation === "petted" || state.presentation === "playing"
+      ? 0xffd6e7
+      : state.presentation === "working"
+        ? 0xfff1b8
+        : state.presentation === "ill"
+          ? 0xb7d7c6
+          : 0xffffff;
+  }
 
   workOverlay.hidden = state.activity === null;
   if (state.activity !== null) {
@@ -292,6 +288,14 @@ async function openSettings(): Promise<void> {
     await window.desktopHome.openSettings();
   } catch (error: unknown) {
     console.error("Unable to open Settings from Home.", error);
+  }
+}
+
+async function openCharacters(): Promise<void> {
+  try {
+    await window.desktopHome.openCharacters();
+  } catch (error: unknown) {
+    layoutStatus.value = error instanceof Error ? error.message : "Characters could not be opened.";
   }
 }
 
@@ -452,6 +456,7 @@ workMenuButton.addEventListener("click", () => void openManagement("work"));
 careersMenuButton.addEventListener("click", () => void openManagement("careers"));
 shopWindowButton.addEventListener("click", () => void openCommerce());
 settingsWindowButton.addEventListener("click", () => void openSettings());
+charactersWindowButton.addEventListener("click", () => void openCharacters());
 cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelActivity" }));
 
 renderState(currentState);
