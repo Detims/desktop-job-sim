@@ -90,6 +90,38 @@ describe("evaluateAutonomy", () => {
     )).toEqual(expect.objectContaining({ code: "autonomy.no_safe_action", type: "blocked" }));
   });
 
+  it("rests for low energy and does not interrupt ordinary work at care thresholds", () => {
+    const tired = { ...state(), needs: { ...state().needs, energy: 20 } };
+    expect(evaluateAutonomy(tired, { mode: "ownedSupplies", reserveCoins: 10 }, PROTOTYPE_JOB)).toEqual({
+      trigger: "energy",
+      type: "startRest",
+    });
+
+    const working = startPrototypeJob({
+      ...state(),
+      household: { inventory: { "core:water": 1 }, wallet: 0 },
+      needs: { ...state().needs, thirst: 25 },
+    }, 1_000);
+    expect(evaluateAutonomy(working, POLICY, PROTOTYPE_JOB)).toEqual({
+      itemId: "core:water",
+      trigger: "thirst",
+      type: "useItem",
+    });
+  });
+
+  it("keeps Careful Spending from starting subsistence work", () => {
+    const thirsty = {
+      ...state(),
+      household: { inventory: {}, wallet: 0 },
+      needs: { ...state().needs, thirst: 25 },
+    };
+    expect(evaluateAutonomy(
+      thirsty,
+      { mode: "carefulSpending", reserveCoins: 10 },
+      PROTOTYPE_JOB,
+    )).toEqual(expect.objectContaining({ type: "blocked" }));
+  });
+
   it("cancels work, study, or play at unsafe thresholds or Burnout", () => {
     const working = startPrototypeJob(state(), 1_000);
     expect(evaluateAutonomy(

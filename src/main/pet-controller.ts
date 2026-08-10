@@ -574,6 +574,7 @@ export class PetController {
     };
     if ("itemId" in decision) details.itemId = decision.itemId;
     if ("jobId" in decision) details.jobId = decision.jobId;
+    if ("reason" in decision) details.reason = decision.reason;
     if (decision.type === "purchaseItem") details.emergency = decision.emergency;
     if (decision.type === "blocked") details.code = decision.code;
 
