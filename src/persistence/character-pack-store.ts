@@ -87,6 +87,27 @@ export class CharacterPackStore {
     });
   }
 
+  async stageRemoval(packId: string, version: string): Promise<string> {
+    const source = this.versionDirectory(packId, version);
+    const staged = join(this.stagingRoot, `remove-${randomUUID()}`);
+    await fs.rename(source, staged);
+    return staged;
+  }
+
+  async restoreRemoval(
+    stagedPath: string,
+    packId: string,
+    version: string,
+  ): Promise<void> {
+    const destination = this.versionDirectory(packId, version);
+    await fs.mkdir(dirname(destination), { recursive: true });
+    await fs.rename(stagedPath, destination);
+  }
+
+  async commitRemoval(stagedPath: string): Promise<void> {
+    await fs.rm(stagedPath, { force: true, recursive: true });
+  }
+
   async loadVisual(pack: InstalledCharacterPackRecord): Promise<CharacterVisual> {
     const { manifest } = pack;
     const assetPath = join(
