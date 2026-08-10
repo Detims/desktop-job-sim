@@ -75,6 +75,17 @@ export interface CharacterPackSummary {
   version: string;
 }
 
+export interface InstalledCharacterPackRecord {
+  archiveSha256: string;
+  installedAt: number;
+  manifest: CharacterPackManifest;
+}
+
+export interface CharacterRegistryRecord {
+  activePackId: string;
+  packs: InstalledCharacterPackRecord[];
+}
+
 export interface CharacterLibrarySnapshot {
   activeAvailable: boolean;
   activePackId: string;
@@ -83,7 +94,7 @@ export interface CharacterLibrarySnapshot {
 
 export interface CharacterVisual {
   animations: Record<CharacterAnimationState, CharacterAnimationDefinition>;
-  assetUrl: string;
+  assetUrl: string | null;
   canvas: CharacterPackManifest["canvas"];
   frameCount: number;
   frameHeight: number;

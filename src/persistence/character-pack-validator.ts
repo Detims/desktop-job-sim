@@ -205,7 +205,7 @@ function readEntry(zipFile: yauzl.ZipFile, entry: yauzl.Entry): Promise<Buffer> 
   });
 }
 
-function pngDimensions(buffer: Buffer): { height: number; width: number } {
+export function pngDimensions(buffer: Buffer): { height: number; width: number } {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   if (
     buffer.length < 24 ||
