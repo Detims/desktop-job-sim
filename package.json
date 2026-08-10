@@ -32,12 +32,14 @@
     "pixi.js": "^8.19.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "yauzl": "^3.4.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@types/yauzl": "^3.4.0",
     "electron": "^43.2.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.0",
