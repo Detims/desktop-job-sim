@@ -6,6 +6,7 @@ import {
 import { reconcileTimedState } from "../domain/exam.js";
 import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
 import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
+import type { OfflineReconciliationDiagnostic } from "../shared/offline-summary-types.js";
 import {
   offlineSummaryEventDrafts,
   reconcileOfflineAutonomy,
@@ -27,6 +28,7 @@ export interface RecoveryResult {
   burnoutRecovered: boolean;
   diagnostics: readonly RecoveryDiagnostic[];
   illnessRecovered: boolean;
+  offlineDiagnostics: readonly OfflineReconciliationDiagnostic[];
   offlineEvents: readonly MeaningfulEventDraft[];
   offlineElapsedMs: number;
   returnSummary: OfflineReturnSummary;
@@ -103,6 +105,7 @@ export function recoverPetState(
     illnessRecovered:
       persistedState.care.seriousIllness !== null &&
       state.care.seriousIllness === null,
+    offlineDiagnostics: offline.diagnostics,
     offlineEvents: offlineSummaryEventDrafts(offline.summary, state.petId),
     offlineElapsedMs,
     returnSummary: offline.summary,

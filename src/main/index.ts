@@ -39,6 +39,7 @@ import {
   type MeaningfulEventDraft,
 } from "../shared/settings-activity-types.js";
 import type { PetState } from "../shared/pet-types.js";
+import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
 import type { MemoryEntryDraft } from "../shared/memory-types.js";
 import { DiagnosticLogger } from "../persistence/diagnostic-logger.js";
 import { PersistenceError } from "../persistence/persistence-error.js";
@@ -79,6 +80,7 @@ let homeCloseConfirmed = false;
 let isQuitting = false;
 let homeReadyTimeout: NodeJS.Timeout | null = null;
 let settingsController: SettingsController | null = null;
+let pendingReturnSummary: OfflineReturnSummary | null = null;
 let settingsRepository: SqlitePetRepository | null = null;
 
 function requirePetController(): PetController {
@@ -305,6 +307,23 @@ function registerPetIpc(): void {
       throw new Error("Unauthorized Settings-window request.");
     }
     openSettingsWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getReturnSummary, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized return-summary request.");
+    }
+    return pendingReturnSummary === null
+      ? null
+      : structuredClone(pendingReturnSummary);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.dismissReturnSummary, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized return-summary dismissal.");
+    }
+    pendingReturnSummary = null;
+    publishToPetSurfaces(IPC_CHANNELS.returnSummaryChanged, null);
   });
 
   ipcMain.handle(IPC_CHANNELS.openHome, (event) => {
@@ -865,6 +884,7 @@ app.whenReady().then(() => {
     let initialPosition = { x: defaultBounds.x, y: defaultBounds.y };
     let startupEvents: MeaningfulEventDraft[];
     let startupMemories: MemoryEntryDraft[] = [];
+    let startupReturnSummary: OfflineReturnSummary | null = null;
 
     if (persisted === null) {
       initialState = createInitialPetState(now);
@@ -886,6 +906,13 @@ app.whenReady().then(() => {
         now,
         persisted.cleanExit,
         CARE_INTENSITY_MULTIPLIERS[initialSettings.careIntensity],
+        {
+          activityBonuses: resolveFurnitureBonuses(initialHomeLayout),
+          enabled: initialSettings.offlineAutonomyEnabled,
+          mode: initialSettings.autonomyMode,
+          reserveCoins: initialSettings.autonomyReserve,
+          rewardMultiplier: initialSettings.offlineRewardMultiplier,
+        },
       );
       initialState = recovery.state;
       initialPosition = persisted.position;
@@ -908,6 +935,10 @@ app.whenReady().then(() => {
               type: "startup.recovered",
             },
       ];
+      startupEvents.push(...recovery.offlineEvents);
+      startupReturnSummary = recovery.returnSummary.shouldShow
+        ? recovery.returnSummary
+        : null;
       if (recovery.illnessRecovered) {
         startupEvents.push({
           details: { health: recovery.state.care.health },
@@ -944,6 +975,14 @@ app.whenReady().then(() => {
           diagnostic.context,
         );
       }
+      for (const diagnostic of recovery.offlineDiagnostics) {
+        diagnosticLogger.write(
+          diagnostic.code.includes("blocked") ? "warning" : "info",
+          diagnostic.code,
+          "Offline autonomy evaluated a deterministic decision.",
+          diagnostic.context,
+        );
+      }
     }
 
     const clampedBounds = clampPetBoundsToWorkAreas(
@@ -962,6 +1001,7 @@ app.whenReady().then(() => {
       startupEvents,
       startupMemories,
     );
+    pendingReturnSummary = startupReturnSummary;
     petController = new PetController(
       initialState,
       (state, committedAt, events, memories) => {
