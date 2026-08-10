@@ -120,6 +120,53 @@ describe("SettingsController", () => {
     expect(activity).toHaveBeenCalledTimes(2);
   });
 
+  it("persists offline autonomy enablement and reward changes", () => {
+    const storage = repository();
+    const activity = vi.fn();
+    const controller = new SettingsController(
+      DEFAULT_APP_SETTINGS,
+      storage,
+      activity,
+    );
+
+    const enabled = controller.update(
+      {
+        baseVersion: 0,
+        update: { offlineAutonomyEnabled: true, type: "setOfflineAutonomyEnabled" },
+      },
+      100,
+    );
+    const fullRewards = controller.update(
+      {
+        baseVersion: 1,
+        update: { offlineRewardMultiplier: 1, type: "setOfflineRewardMultiplier" },
+      },
+      200,
+    );
+
+    expect(enabled.offlineAutonomyEnabled).toBe(true);
+    expect(fullRewards).toEqual(expect.objectContaining({
+      offlineAutonomyEnabled: true,
+      offlineRewardMultiplier: 1,
+      settingsVersion: 2,
+    }));
+    expect(storage.saveSettings).toHaveBeenNthCalledWith(
+      1,
+      enabled,
+      0,
+      expect.objectContaining({ type: "settings.offline_autonomy_changed" }),
+      undefined,
+    );
+    expect(storage.saveSettings).toHaveBeenNthCalledWith(
+      2,
+      fullRewards,
+      1,
+      expect.objectContaining({ type: "settings.offline_reward_changed" }),
+      undefined,
+    );
+    expect(activity).toHaveBeenCalledTimes(2);
+  });
+
   it("does not publish or mutate when persistence fails", () => {
     const storage = repository();
     vi.mocked(storage.saveSettings).mockImplementation(() => {
