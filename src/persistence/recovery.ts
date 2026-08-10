@@ -1,11 +1,16 @@
 import type { PetState } from "../shared/pet-types.js";
 import {
-  applyOfflineNeedDecay,
   cancelActiveActivity,
   MAX_OFFLINE_ELAPSED_MS,
-  OFFLINE_NEED_RATE,
 } from "../simulation/pet-simulation.js";
 import { reconcileTimedState } from "../domain/exam.js";
+import type { MeaningfulEventDraft } from "../shared/settings-activity-types.js";
+import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
+import {
+  offlineSummaryEventDrafts,
+  reconcileOfflineAutonomy,
+  type OfflineAutonomyPolicy,
+} from "./offline-autonomy.js";
 
 export type RecoveryDiagnosticCode =
   | "recovery.clean_start"
@@ -22,9 +27,19 @@ export interface RecoveryResult {
   burnoutRecovered: boolean;
   diagnostics: readonly RecoveryDiagnostic[];
   illnessRecovered: boolean;
+  offlineEvents: readonly MeaningfulEventDraft[];
   offlineElapsedMs: number;
+  returnSummary: OfflineReturnSummary;
   state: PetState;
 }
+
+const DEFAULT_OFFLINE_POLICY: OfflineAutonomyPolicy = {
+  activityBonuses: { restRecovery: 0, studyGain: 0 },
+  enabled: false,
+  mode: "manual",
+  reserveCoins: 10,
+  rewardMultiplier: 0.5,
+};
 
 export function recoverPetState(
   persistedState: PetState,
@@ -32,6 +47,7 @@ export function recoverPetState(
   now: number,
   cleanExit: boolean,
   onlineNeedMultiplier = 1,
+  offlinePolicy: OfflineAutonomyPolicy = DEFAULT_OFFLINE_POLICY,
 ): RecoveryResult {
   const diagnostics: RecoveryDiagnostic[] = [];
   const rawElapsedMs = now - savedAt;
@@ -56,12 +72,14 @@ export function recoverPetState(
   const hadActiveActivity = persistedState.activity !== null;
   const cancelledState = cancelActiveActivity(persistedState);
   const effectiveNow = validClock ? now : savedAt;
-  let state = applyOfflineNeedDecay(
+  const offline = reconcileOfflineAutonomy(
     cancelledState,
     offlineElapsedMs,
-    effectiveNow,
-    onlineNeedMultiplier * OFFLINE_NEED_RATE,
+    savedAt,
+    onlineNeedMultiplier,
+    offlinePolicy,
   );
+  let state = offline.state;
   state = reconcileTimedState(state, effectiveNow);
   state = {
     ...state,
@@ -85,7 +103,9 @@ export function recoverPetState(
     illnessRecovered:
       persistedState.care.seriousIllness !== null &&
       state.care.seriousIllness === null,
+    offlineEvents: offlineSummaryEventDrafts(offline.summary, state.petId),
     offlineElapsedMs,
+    returnSummary: offline.summary,
     state,
   };
 }
