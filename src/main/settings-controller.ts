@@ -77,6 +77,22 @@ export class SettingsController {
           type: "settings.autonomy_reserve_changed" as const,
         };
         break;
+      case "setOfflineAutonomyEnabled":
+        next = { ...current, offlineAutonomyEnabled: command.update.offlineAutonomyEnabled };
+        eventDraft = {
+          details: { enabled: next.offlineAutonomyEnabled },
+          summary: `Offline autonomy ${next.offlineAutonomyEnabled ? "enabled" : "disabled"}.`,
+          type: "settings.offline_autonomy_changed" as const,
+        };
+        break;
+      case "setOfflineRewardMultiplier":
+        next = { ...current, offlineRewardMultiplier: command.update.offlineRewardMultiplier };
+        eventDraft = {
+          details: { from: current.offlineRewardMultiplier, to: next.offlineRewardMultiplier },
+          summary: `Offline rewards changed to ${next.offlineRewardMultiplier * 100}%.`,
+          type: "settings.offline_reward_changed" as const,
+        };
+        break;
       case "setActivityRetention":
         next = { ...current, activityRetention: command.update.activityRetention };
         eventDraft = {
@@ -92,6 +108,8 @@ export class SettingsController {
       next.alwaysOnTop === current.alwaysOnTop &&
       next.autonomyMode === current.autonomyMode &&
       next.autonomyReserve === current.autonomyReserve &&
+      next.offlineAutonomyEnabled === current.offlineAutonomyEnabled &&
+      next.offlineRewardMultiplier === current.offlineRewardMultiplier &&
       next.activityRetention === current.activityRetention
     ) {
       return this.getSnapshot();

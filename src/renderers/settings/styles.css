@@ -17,6 +17,8 @@ input[type="range"] { accent-color: #d97706; margin: 20px 0 2px; width: 100%; }
 .markers span:last-child { text-align: right; }
 .autonomy-markers { font-size: 8px; }
 .setting-divider { border-top: 1px solid #ded8cb; margin: 6px 0 20px; }
+.offline-rewards-heading { border-top: 1px solid #ded8cb; padding-top: 18px; }
+.offline-reward-markers { grid-template-columns: repeat(5, 1fr); }
 .setting-row { border-top: 1px solid #ded8cb; min-height: 66px; }
 .setting-row input[type="checkbox"] { accent-color: #d97706; height: 18px; width: 18px; }
 .setting-row input[type="number"] { background: white; border: 1px solid #c9c1b2; border-radius: 8px; color: #28251f; padding: 7px 9px; width: 84px; }

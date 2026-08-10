@@ -18,6 +18,8 @@ export interface AppSettings {
   autonomyMode: AutonomyMode;
   autonomyReserve: number;
   careIntensity: CareIntensity;
+  offlineAutonomyEnabled: boolean;
+  offlineRewardMultiplier: number;
   settingsVersion: number;
 }
 
@@ -26,6 +28,8 @@ export type SettingsUpdate =
   | { alwaysOnTop: boolean; type: "setAlwaysOnTop" }
   | { autonomyMode: AutonomyMode; type: "setAutonomyMode" }
   | { autonomyReserve: number; type: "setAutonomyReserve" }
+  | { offlineAutonomyEnabled: boolean; type: "setOfflineAutonomyEnabled" }
+  | { offlineRewardMultiplier: number; type: "setOfflineRewardMultiplier" }
   | { activityRetention: ActivityRetention; type: "setActivityRetention" };
 
 export interface UpdateSettingsCommand {
@@ -66,6 +70,8 @@ export type MeaningfulEventType =
   | "settings.care_intensity_changed"
   | "settings.autonomy_mode_changed"
   | "settings.autonomy_reserve_changed"
+  | "settings.offline_autonomy_changed"
+  | "settings.offline_reward_changed"
   | "settings.always_on_top_changed"
   | "settings.retention_changed";
 
@@ -118,6 +124,8 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   autonomyMode: "manual",
   autonomyReserve: 10,
   careIntensity: "balanced",
+  offlineAutonomyEnabled: false,
+  offlineRewardMultiplier: 0.5,
   settingsVersion: 0,
 });
 

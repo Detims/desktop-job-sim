@@ -39,4 +39,17 @@ describe("autonomy settings contracts", () => {
       update: { autonomyReserve: 1_001, type: "setAutonomyReserve" },
     })).toThrow();
   });
+
+  it("accepts only the five snapping offline reward levels", () => {
+    for (const offlineRewardMultiplier of [0, 0.25, 0.5, 0.75, 1]) {
+      expect(AppSettingsSchema.parse({
+        ...DEFAULT_APP_SETTINGS,
+        offlineRewardMultiplier,
+      }).offlineRewardMultiplier).toBe(offlineRewardMultiplier);
+    }
+    expect(() => AppSettingsSchema.parse({
+      ...DEFAULT_APP_SETTINGS,
+      offlineRewardMultiplier: 0.4,
+    })).toThrow();
+  });
 });
