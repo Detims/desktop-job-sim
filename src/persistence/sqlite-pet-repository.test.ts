@@ -17,6 +17,9 @@ import { PersistenceError } from "./persistence-error.js";
 import { SqlitePetRepository } from "./sqlite-pet-repository.js";
 import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
 import type { MemoryEntry } from "../shared/memory-types.js";
+import { BUILT_IN_CHARACTER_ID } from "../domain/built-in-character.js";
+import { CharacterPackManifestSchema } from "../shared/character-contracts.js";
+import { CHARACTER_ANIMATION_STATES } from "../shared/character-types.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -135,8 +138,92 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(11);
+    expect(version.user_version).toBe(12);
     migrated.close();
+  });
+
+  it("persists the character registry and selection with audit events", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    expect(repository.loadCharacterRegistry()).toEqual({
+      activePackId: BUILT_IN_CHARACTER_ID,
+      packs: [],
+    });
+    const manifest = CharacterPackManifestSchema.parse({
+      animations: { idle: { fps: 6, frames: [0], loop: true } },
+      canvas: {
+        anchors: { feet: { x: 1, y: 1 } },
+        height: 1,
+        hitbox: { height: 1, width: 1, x: 0, y: 0 },
+        pivot: { x: 1, y: 1 },
+        width: 1,
+      },
+      engineVersion: 1,
+      fallbacks: Object.fromEntries(
+        CHARACTER_ANIMATION_STATES.map((state) => [state, "idle"]),
+      ),
+      id: "sample:blue-cat",
+      metadata: {
+        commercialUse: "allowed",
+        creator: "Artist",
+        license: "MIT",
+        name: "Blue Cat",
+        source: "Test fixture",
+        thirdPartyAssets: [],
+      },
+      schemaVersion: 1,
+      spritesheet: {
+        frameCount: 1,
+        frameHeight: 1,
+        frameWidth: 1,
+        path: "sprites/idle.png",
+        scaleMode: "nearest",
+      },
+      version: "1.0.0",
+    });
+    const baseEvent: MeaningfulEvent = {
+      details: { packId: manifest.id },
+      eventId: "character-installed",
+      occurredAt: 30,
+      retention: "standard",
+      summary: "Blue Cat installed.",
+      type: "character.installed",
+    };
+    repository.saveInstalledCharacter({
+      archiveSha256: "a".repeat(64),
+      installedAt: 30,
+      manifest,
+    }, baseEvent);
+    repository.setActiveCharacter(manifest.id, {
+      ...baseEvent,
+      eventId: "character-applied",
+      type: "character.applied",
+    });
+
+    expect(repository.loadCharacterRegistry()).toEqual({
+      activePackId: manifest.id,
+      packs: [{
+        archiveSha256: "a".repeat(64),
+        installedAt: 30,
+        manifest,
+      }],
+    });
+    repository.setActiveCharacter(BUILT_IN_CHARACTER_ID, {
+      ...baseEvent,
+      eventId: "character-built-in-applied",
+      type: "character.applied",
+    });
+    repository.removeInstalledCharacter(manifest.id, {
+      ...baseEvent,
+      eventId: "character-removed",
+      type: "character.removed",
+    });
+    expect(repository.loadCharacterRegistry()).toEqual({
+      activePackId: BUILT_IN_CHARACTER_ID,
+      packs: [],
+    });
+    expect(repository.loadActivityPage(undefined, 10).events).toHaveLength(4);
+    repository.close();
   });
 
   it("persists versioned settings and their audit event atomically", () => {

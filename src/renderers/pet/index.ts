@@ -1,11 +1,4 @@
-import {
-  AnimatedSprite,
-  Application,
-  Assets,
-  Graphics,
-  Rectangle,
-  Texture,
-} from "pixi.js";
+import { Application, Graphics } from "pixi.js";
 
 import spriteSheetUrl from "../../../content/core/characters/prototype-cat/idle.png";
 import { activityLabel } from "../../shared/activity-label.js";
@@ -18,14 +11,12 @@ import {
 } from "../../shared/contracts.js";
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
-import { resolveAnimation } from "./animation.js";
+import { CharacterVisualRenderer } from "../shared/character-visual.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
 
-const FRAME_COUNT = 4;
 const DRAG_HOLD_MS = 220;
 const CLICK_MOVEMENT_TOLERANCE = 6;
-const availableAnimations = new Set(["idle"]);
 
 function requiredElement<T extends HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -53,6 +44,7 @@ const careersMenuButton = requiredElement<HTMLButtonElement>(
 );
 const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
 const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
+const charactersWindowButton = requiredElement<HTMLButtonElement>("#characters-window-button");
 const cancelWorkButton = requiredElement<HTMLButtonElement>(
   "#cancel-work-button",
 );
@@ -80,55 +72,23 @@ pixi.canvas.setAttribute("aria-hidden", "true");
 pixi.canvas.tabIndex = 0;
 root.appendChild(pixi.canvas);
 
-let petSprite: AnimatedSprite | null = null;
 let currentState: PetState = readSnapshot(await window.desktopPet.getSnapshot());
 const petOverlay = await initializePetOverlay(window.desktopPet);
 let resyncInFlight: Promise<void> | null = null;
 
-async function addPetSprite(): Promise<void> {
-  const sheet = await Assets.load<Texture>(spriteSheetUrl);
-  const frameWidth = Math.floor(sheet.width / FRAME_COUNT);
-  const frames = Array.from(
-    { length: FRAME_COUNT },
-    (_, index) =>
-      new Texture({
-        frame: new Rectangle(
-          frameWidth * index,
-          0,
-          frameWidth,
-          sheet.height,
-        ),
-        source: sheet.source,
-      }),
-  );
-  const sprite = new AnimatedSprite(frames);
-  const availableWidth = pixi.screen.width - 32;
-  const availableHeight = pixi.screen.height - 82;
-  const scale = Math.min(
-    availableWidth / frameWidth,
-    availableHeight / sheet.height,
-  );
-
-  sprite.anchor.set(0.5, 1);
-  sprite.animationSpeed = 0.035;
-  sprite.scale.set(scale);
-  sprite.position.set(pixi.screen.width / 2, pixi.screen.height - 76);
-  sprite.play();
-  pixi.stage.addChild(sprite);
-  petSprite = sprite;
-}
-
-function addFallbackPet(): void {
-  const fallback = new Graphics()
+const characterVisual = new CharacterVisualRenderer(pixi, {
+  builtInAssetUrl: spriteSheetUrl,
+  fallback: () => new Graphics()
     .circle(0, 0, 72)
     .fill({ color: 0xf59e0b })
     .circle(-26, -12, 8)
     .circle(26, -12, 8)
-    .fill({ color: 0x3f2618 });
-
-  fallback.position.set(pixi.screen.width / 2, pixi.screen.height / 2);
-  pixi.stage.addChild(fallback);
-}
+    .fill({ color: 0x3f2618 }),
+  maxHeight: pixi.screen.height - 82,
+  maxWidth: pixi.screen.width - 32,
+  x: pixi.screen.width / 2,
+  y: pixi.screen.height - 76,
+});
 
 function renderNeed(name: keyof NeedState, value: number): void {
   const element = needElements[name];
@@ -137,15 +97,16 @@ function renderNeed(name: keyof NeedState, value: number): void {
 }
 
 function setPresentation(presentation: Presentation): void {
-  const resolved = resolveAnimation(presentation, availableAnimations);
   shell.dataset.presentation = presentation;
-  shell.dataset.animation = resolved;
+  shell.dataset.animation = presentation;
+  characterVisual.setPresentation(presentation);
 
-  if (petSprite === null) {
+  const display = characterVisual.display;
+  if (display === null) {
     return;
   }
 
-  petSprite.tint =
+  display.tint =
     presentation === "petted" || presentation === "playing"
       ? 0xffd6e7
       : presentation === "working"
@@ -153,10 +114,10 @@ function setPresentation(presentation: Presentation): void {
         : presentation === "ill"
           ? 0xb7d7c6
           : 0xffffff;
-  petSprite.scale.y =
+  display.scale.y =
     presentation === "petted" || presentation === "playing"
-      ? Math.abs(petSprite.scale.x) * 0.95
-      : Math.abs(petSprite.scale.x);
+      ? Math.abs(display.scale.x) * 0.95
+      : Math.abs(display.scale.x);
 }
 
 function renderState(state: PetState): void {
@@ -250,6 +211,14 @@ async function openSettings(): Promise<void> {
   }
 }
 
+async function openCharacters(): Promise<void> {
+  try {
+    await window.desktopPet.openCharacters();
+  } catch (error: unknown) {
+    statusText.value = error instanceof Error ? error.message : "Characters could not be opened.";
+  }
+}
+
 window.desktopPet.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -262,11 +231,17 @@ window.desktopPet.onPatch((patch) => {
 });
 
 try {
-  await addPetSprite();
+  await characterVisual.replace(await window.desktopPet.getCharacterVisual());
 } catch (error: unknown) {
-  console.error("Unable to load the prototype pet sprite.", error);
-  addFallbackPet();
+  console.error("Unable to load the selected pet sprite.", error);
 }
+
+window.desktopPet.onCharacterChanged((visual) => {
+  void characterVisual.replace(visual).then(
+    () => setPresentation(currentState.presentation),
+    (error: unknown) => console.error("Unable to apply the selected character.", error),
+  );
+});
 
 renderState(currentState);
 
@@ -386,6 +361,7 @@ careersMenuButton.addEventListener("click", () => {
 });
 shopWindowButton.addEventListener("click", () => void openCommerce());
 settingsWindowButton.addEventListener("click", () => void openSettings());
+charactersWindowButton.addEventListener("click", () => void openCharacters());
 cancelWorkButton.addEventListener("click", () => {
   void dispatch({ type: "cancelActivity" });
 });

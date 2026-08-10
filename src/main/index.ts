@@ -8,7 +8,7 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +30,13 @@ import {
   ActivityPageRequestSchema,
   UpdateSettingsCommandSchema,
 } from "../shared/settings-activity-contracts.js";
+import {
+  CharacterCommandSchema,
+} from "../shared/character-contracts.js";
+import type {
+  CharacterLibrarySnapshot,
+  CharacterVisual,
+} from "../shared/character-types.js";
 import { MemoryPageRequestSchema } from "../shared/memory-contracts.js";
 import {
   ACTIVITY_RETENTION_MS,
@@ -46,6 +53,7 @@ import { PersistenceError } from "../persistence/persistence-error.js";
 import { PersistenceSession } from "../persistence/persistence-session.js";
 import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
+import { CharacterPackStore } from "../persistence/character-pack-store.js";
 import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
 import { careerEventDrafts } from "../domain/career.js";
@@ -53,6 +61,7 @@ import { createInitialPetState } from "../simulation/pet-simulation.js";
 import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
 import { SettingsController } from "./settings-controller.js";
+import { CharacterController } from "./character-controller.js";
 import {
   calculateInitialPetBounds,
   clampPetBoundsToWorkAreas,
@@ -65,6 +74,7 @@ let managementWindow: BrowserWindow | null = null;
 let homeWindow: BrowserWindow | null = null;
 let commerceWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let charactersWindow: BrowserWindow | null = null;
 let dragOffset: WindowPoint | null = null;
 let scheduler: NodeJS.Timeout | null = null;
 let lastTickAt = performance.now();
@@ -82,6 +92,7 @@ let homeReadyTimeout: NodeJS.Timeout | null = null;
 let settingsController: SettingsController | null = null;
 let pendingReturnSummary: OfflineReturnSummary | null = null;
 let settingsRepository: SqlitePetRepository | null = null;
+let characterController: CharacterController | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
@@ -102,6 +113,13 @@ function requireSettingsController(): SettingsController {
     throw new Error("Settings controller is not initialized.");
   }
   return settingsController;
+}
+
+function requireCharacterController(): CharacterController {
+  if (characterController === null) {
+    throw new Error("Character controller is not initialized.");
+  }
+  return characterController;
 }
 
 function handlePersistenceFailure(error: unknown): void {
@@ -151,6 +169,10 @@ function isHomeSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return homeWindow !== null && event.sender === homeWindow.webContents;
 }
 
+function isCharactersSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return charactersWindow !== null && event.sender === charactersWindow.webContents;
+}
+
 function publishPatch(patch: PetPatch): void {
   if (petWindow !== null && !petWindow.isDestroyed()) {
     petWindow.webContents.send(IPC_CHANNELS.patch, patch);
@@ -183,6 +205,19 @@ function publishActivityEvent(event: MeaningfulEvent): void {
 function publishSettings(settings: AppSettings): void {
   if (settingsWindow !== null && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
+  }
+}
+
+function publishCharacterChange(change: {
+  library: CharacterLibrarySnapshot;
+  visual: CharacterVisual;
+}): void {
+  publishToPetSurfaces(IPC_CHANNELS.characterChanged, change.visual);
+  if (charactersWindow !== null && !charactersWindow.isDestroyed()) {
+    charactersWindow.webContents.send(
+      IPC_CHANNELS.characterLibraryChanged,
+      change.library,
+    );
   }
 }
 
@@ -307,6 +342,64 @@ function registerPetIpc(): void {
       throw new Error("Unauthorized Settings-window request.");
     }
     openSettingsWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.openCharacters, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized Characters-window request.");
+    }
+    openCharactersWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.characterGetLibrary, (event) => {
+    if (!isCharactersSender(event)) {
+      throw new Error("Unauthorized character-library request.");
+    }
+    return requireCharacterController().getLibrary();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.characterGetVisual, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized character-visual request.");
+    }
+    return requireCharacterController().getActiveVisual();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.characterSelectImport, async (event) => {
+    if (!isCharactersSender(event) || charactersWindow === null) {
+      throw new Error("Unauthorized character-import request.");
+    }
+    const selected = await dialog.showOpenDialog(charactersWindow, {
+      filters: [{ extensions: ["zip"], name: "Character pack ZIP" }],
+      properties: ["openFile"],
+      title: "Choose a character pack",
+    });
+    if (selected.canceled || selected.filePaths[0] === undefined) return null;
+    const archivePath = selected.filePaths[0];
+    if (extname(archivePath).toLowerCase() !== ".zip") {
+      throw new Error("Character packs must be ZIP files.");
+    }
+    return requireCharacterController().preview(archivePath);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.characterCommand, async (event, input: unknown) => {
+    if (!isCharactersSender(event)) {
+      throw new Error("Unauthorized character command.");
+    }
+    const command = CharacterCommandSchema.parse(input);
+    try {
+      switch (command.type) {
+        case "apply":
+          return await requireCharacterController().apply(command.packId, Date.now());
+        case "install":
+          return await requireCharacterController().install(command.previewToken, Date.now());
+        case "remove":
+          return await requireCharacterController().remove(command.packId, Date.now());
+      }
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.getReturnSummary, (event) => {
@@ -705,6 +798,37 @@ function createSettingsWindow(): BrowserWindow {
   return window;
 }
 
+function createCharactersWindow(): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const window = new BrowserWindow({
+    backgroundColor: "#f4f1e8",
+    height: 620,
+    minHeight: 500,
+    minWidth: 620,
+    show: false,
+    title: "Desktop Pet Characters",
+    width: 780,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(currentDirectory, "../preload/characters.cjs"),
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+  window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (charactersWindow === window) charactersWindow = null;
+  });
+  void window.loadFile(
+    join(currentDirectory, "../renderer/characters/index.html"),
+  );
+  return window;
+}
+
 function createHomeWindow(): BrowserWindow {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
   const preloadPath = join(currentDirectory, "../preload/home.cjs");
@@ -827,6 +951,16 @@ function openSettingsWindow(): void {
   settingsWindow.focus();
 }
 
+function openCharactersWindow(): void {
+  if (charactersWindow === null || charactersWindow.isDestroyed()) {
+    charactersWindow = createCharactersWindow();
+    return;
+  }
+  if (charactersWindow.isMinimized()) charactersWindow.restore();
+  charactersWindow.show();
+  charactersWindow.focus();
+}
+
 function openHomeWindow(): void {
   if (homeWindow === null || homeWindow.isDestroyed()) {
     homeWindow = createHomeWindow();
@@ -840,7 +974,7 @@ function openHomeWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const now = Date.now();
 
   try {
@@ -866,6 +1000,16 @@ app.whenReady().then(() => {
       repository,
       publishActivityEvent,
     );
+    characterController = new CharacterController(
+      repository,
+      new CharacterPackStore(join(userDataPath, "characters")),
+      publishActivityEvent,
+      (code, message, context) => {
+        diagnosticLogger?.write("warning", code, message, context);
+      },
+    );
+    await characterController.initialize();
+    characterController.subscribe(publishCharacterChange);
     const persisted = repository.load();
     const persistedHomeLayout = repository.loadHomeLayout();
     const initialHomeLayout = persistedHomeLayout ?? createInitialHomeLayout();

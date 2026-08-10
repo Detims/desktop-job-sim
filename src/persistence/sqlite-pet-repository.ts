@@ -11,12 +11,17 @@ import { DatabaseSync } from "node:sqlite";
 import { assertValidHomeLayout } from "../domain/home-layout.js";
 import { HomeLayoutSchema } from "../shared/home-contracts.js";
 import { PersistedPetRecordSchema } from "../shared/contracts.js";
+import { CharacterPackManifestSchema } from "../shared/character-contracts.js";
 import { MemoryEntrySchema } from "../shared/memory-contracts.js";
 import {
   AppSettingsSchema,
   MeaningfulEventSchema,
 } from "../shared/settings-activity-contracts.js";
 import type { HomeLayout } from "../shared/home-types.js";
+import type {
+  CharacterRegistryRecord,
+  InstalledCharacterPackRecord,
+} from "../shared/character-types.js";
 import type { PersistedPetRecord } from "../shared/pet-types.js";
 import type {
   MemoryCursor,
@@ -31,13 +36,14 @@ import {
   type MeaningfulEvent,
 } from "../shared/settings-activity-types.js";
 import type { DiagnosticLogger } from "./diagnostic-logger.js";
+import type { CharacterRegistryRepository } from "./character-registry-repository.js";
 import type { HomeLayoutRepository } from "./home-layout-repository.js";
 import type { PetRepository } from "./pet-repository.js";
 import type { SettingsActivityRepository } from "./settings-activity-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 12;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -91,8 +97,16 @@ interface MemoryRow {
   title: string;
 }
 
+interface CharacterPackRow {
+  archive_sha256: string;
+  installed_at: number;
+  manifest_json: string;
+  pack_id: string;
+  version: string;
+}
+
 export class SqlitePetRepository
-  implements PetRepository, HomeLayoutRepository, MemoryRepository, SettingsActivityRepository
+  implements PetRepository, HomeLayoutRepository, MemoryRepository, SettingsActivityRepository, CharacterRegistryRepository
 {
   private constructor(
     private database: DatabaseSync,
@@ -257,6 +271,120 @@ export class SqlitePetRepository
       throw this.wrapAndLog(
         "database.settings_invalid",
         "Persisted application settings failed validation.",
+        error,
+      );
+    }
+  }
+
+  loadCharacterRegistry(): CharacterRegistryRecord {
+    try {
+      const selection = this.database
+        .prepare("SELECT active_pack_id FROM character_selection WHERE id = 1")
+        .get() as { active_pack_id: string } | undefined;
+      if (selection === undefined) {
+        throw new Error("The character selection singleton is missing.");
+      }
+      const rows = this.database
+        .prepare(
+          `SELECT pack_id, version, manifest_json, archive_sha256, installed_at
+             FROM installed_character_pack
+            ORDER BY installed_at, pack_id`,
+        )
+        .all() as unknown as CharacterPackRow[];
+      return {
+        activePackId: selection.active_pack_id,
+        packs: rows.map((row) => {
+          const manifest = CharacterPackManifestSchema.parse(
+            JSON.parse(row.manifest_json),
+          );
+          if (manifest.id !== row.pack_id || manifest.version !== row.version) {
+            throw new Error("Stored character identity does not match its manifest.");
+          }
+          return {
+            archiveSha256: row.archive_sha256,
+            installedAt: row.installed_at,
+            manifest,
+          } as InstalledCharacterPackRecord;
+        }),
+      };
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.character_registry_invalid",
+        "Persisted character-pack metadata failed validation.",
+        error,
+      );
+    }
+  }
+
+  saveInstalledCharacter(
+    pack: InstalledCharacterPackRecord,
+    event: MeaningfulEvent,
+  ): void {
+    const manifest = CharacterPackManifestSchema.parse(pack.manifest);
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare(
+        `INSERT INTO installed_character_pack (
+           pack_id, version, manifest_json, archive_sha256, installed_at
+         ) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(pack_id) DO UPDATE SET
+           version = excluded.version,
+           manifest_json = excluded.manifest_json,
+           archive_sha256 = excluded.archive_sha256,
+           installed_at = excluded.installed_at`,
+      ).run(
+        manifest.id,
+        manifest.version,
+        JSON.stringify(manifest),
+        pack.archiveSha256,
+        pack.installedAt,
+      );
+      this.insertEvent(event);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.character_install_failed",
+        "Character-pack metadata could not be installed transactionally.",
+        error,
+      );
+    }
+  }
+
+  setActiveCharacter(packId: string, event: MeaningfulEvent): void {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare(
+        "UPDATE character_selection SET active_pack_id = ? WHERE id = 1",
+      ).run(packId);
+      this.insertEvent(event);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.character_selection_failed",
+        "The active character could not be saved transactionally.",
+        error,
+      );
+    }
+  }
+
+  removeInstalledCharacter(packId: string, event: MeaningfulEvent): void {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const result = this.database.prepare(
+        "DELETE FROM installed_character_pack WHERE pack_id = ?",
+      ).run(packId);
+      if (Number(result.changes) !== 1) {
+        throw new Error("The installed character pack does not exist.");
+      }
+      this.insertEvent(event);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.character_remove_failed",
+        "Character-pack metadata could not be removed transactionally.",
         error,
       );
     }
@@ -765,6 +893,23 @@ export class SqlitePetRepository
           ALTER TABLE app_settings
             ADD COLUMN offline_reward_multiplier REAL NOT NULL DEFAULT 0.5
               CHECK (offline_reward_multiplier IN (0, 0.25, 0.5, 0.75, 1));
+        `);
+      }
+      if (fromVersion < 12) {
+        database.exec(`
+          CREATE TABLE installed_character_pack (
+            pack_id TEXT PRIMARY KEY,
+            version TEXT NOT NULL,
+            manifest_json TEXT NOT NULL,
+            archive_sha256 TEXT NOT NULL,
+            installed_at INTEGER NOT NULL CHECK (installed_at >= 0)
+          ) STRICT;
+          CREATE TABLE character_selection (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            active_pack_id TEXT NOT NULL
+          ) STRICT;
+          INSERT INTO character_selection (id, active_pack_id)
+          VALUES (1, 'core:prototype-cat');
         `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
