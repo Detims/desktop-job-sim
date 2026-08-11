@@ -138,8 +138,65 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(12);
+    expect(version.user_version).toBe(13);
     migrated.close();
+  });
+
+  it("persists integration settings and deduplicates Gmail identifiers without content", () => {
+    const { logger, paths } = fixture();
+    const repository = SqlitePetRepository.open(paths, logger);
+    expect(repository.loadIntegrationState()).toEqual({
+      lastAnnouncementAt: null,
+      lastAnnouncementCount: 0,
+      lastSyncAt: null,
+      settings: {
+        privacyMode: "countOnly",
+        quietEndMinutes: 480,
+        quietHoursEnabled: false,
+        quietStartMinutes: 1_320,
+        settingsVersion: 0,
+      },
+    });
+
+    repository.saveIntegrationSettings({
+      privacyMode: "senderSubject",
+      quietEndMinutes: 420,
+      quietHoursEnabled: true,
+      quietStartMinutes: 1_380,
+      settingsVersion: 1,
+    }, 0);
+    const messages = [
+      { detectedAt: 100, messageId: "message-1", threadId: "thread-1" },
+      { detectedAt: 200, messageId: "message-2", threadId: "thread-2" },
+    ];
+    expect(repository.recordDetectedGmailMessages(messages)).toBe(2);
+    expect(repository.recordDetectedGmailMessages(messages)).toBe(0);
+    expect(repository.loadPendingGmailMessages(10)).toEqual(messages);
+    repository.markGmailMessagesAnnounced(["message-1", "message-2"], 300);
+    repository.saveIntegrationSync(400);
+    expect(repository.loadPendingGmailMessages(10)).toEqual([]);
+    expect(repository.loadIntegrationState()).toEqual({
+      lastAnnouncementAt: 300,
+      lastAnnouncementCount: 2,
+      lastSyncAt: 400,
+      settings: {
+        privacyMode: "senderSubject",
+        quietEndMinutes: 420,
+        quietHoursEnabled: true,
+        quietStartMinutes: 1_380,
+        settingsVersion: 1,
+      },
+    });
+    repository.close();
+
+    const database = new DatabaseSync(paths.databasePath, { readOnly: true });
+    const columns = database.prepare(
+      "SELECT name FROM pragma_table_info('gmail_message_detection') ORDER BY cid",
+    ).all() as unknown as Array<{ name: string }>;
+    expect(columns.map(({ name }) => name)).toEqual([
+      "message_id", "thread_id", "detected_at", "announced_at",
+    ]);
+    database.close();
   });
 
   it("persists the character registry and selection with audit events", () => {

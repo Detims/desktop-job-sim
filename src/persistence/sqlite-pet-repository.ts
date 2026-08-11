@@ -13,6 +13,7 @@ import { HomeLayoutSchema } from "../shared/home-contracts.js";
 import { PersistedPetRecordSchema } from "../shared/contracts.js";
 import { CharacterPackManifestSchema } from "../shared/character-contracts.js";
 import { MemoryEntrySchema } from "../shared/memory-contracts.js";
+import { IntegrationSettingsSchema } from "../shared/integration-contracts.js";
 import {
   AppSettingsSchema,
   MeaningfulEventSchema,
@@ -29,6 +30,12 @@ import type {
   MemoryPage,
 } from "../shared/memory-types.js";
 import {
+  DEFAULT_INTEGRATION_SETTINGS,
+  type GmailMessageReference,
+  type IntegrationDurableState,
+  type IntegrationSettings,
+} from "../shared/integration-types.js";
+import {
   DEFAULT_APP_SETTINGS,
   type ActivityCursor,
   type ActivityPage,
@@ -41,9 +48,10 @@ import type { HomeLayoutRepository } from "./home-layout-repository.js";
 import type { PetRepository } from "./pet-repository.js";
 import type { SettingsActivityRepository } from "./settings-activity-repository.js";
 import type { MemoryRepository } from "./memory-repository.js";
+import type { IntegrationRepository } from "./integration-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -105,8 +113,28 @@ interface CharacterPackRow {
   version: string;
 }
 
+interface IntegrationSettingsRow {
+  privacy_mode: string;
+  quiet_end_minutes: number;
+  quiet_hours_enabled: number;
+  quiet_start_minutes: number;
+  settings_version: number;
+}
+
+interface IntegrationSyncRow {
+  last_announcement_at: number | null;
+  last_announcement_count: number;
+  last_sync_at: number | null;
+}
+
+interface GmailMessageRow {
+  detected_at: number;
+  message_id: string;
+  thread_id: string;
+}
+
 export class SqlitePetRepository
-  implements PetRepository, HomeLayoutRepository, MemoryRepository, SettingsActivityRepository, CharacterRegistryRepository
+  implements PetRepository, HomeLayoutRepository, MemoryRepository, SettingsActivityRepository, CharacterRegistryRepository, IntegrationRepository
 {
   private constructor(
     private database: DatabaseSync,
@@ -271,6 +299,175 @@ export class SqlitePetRepository
       throw this.wrapAndLog(
         "database.settings_invalid",
         "Persisted application settings failed validation.",
+        error,
+      );
+    }
+  }
+
+  loadIntegrationState(): IntegrationDurableState {
+    try {
+      const settings = this.database.prepare(
+        `SELECT privacy_mode, quiet_hours_enabled, quiet_start_minutes,
+                quiet_end_minutes, settings_version
+           FROM integration_settings WHERE id = 1`,
+      ).get() as IntegrationSettingsRow | undefined;
+      const sync = this.database.prepare(
+        `SELECT last_sync_at, last_announcement_at, last_announcement_count
+           FROM integration_sync_state WHERE id = 1`,
+      ).get() as IntegrationSyncRow | undefined;
+      if (settings === undefined || sync === undefined) {
+        throw new Error("Integration singleton rows are missing.");
+      }
+      return {
+        lastAnnouncementAt: sync.last_announcement_at,
+        lastAnnouncementCount: sync.last_announcement_count,
+        lastSyncAt: sync.last_sync_at,
+        settings: IntegrationSettingsSchema.parse({
+          privacyMode: settings.privacy_mode,
+          quietEndMinutes: settings.quiet_end_minutes,
+          quietHoursEnabled: settings.quiet_hours_enabled === 1,
+          quietStartMinutes: settings.quiet_start_minutes,
+          settingsVersion: settings.settings_version,
+        }),
+      };
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.integration_state_invalid",
+        "Persisted integration state failed validation.",
+        error,
+      );
+    }
+  }
+
+  saveIntegrationSettings(
+    settings: IntegrationSettings,
+    expectedVersion: number,
+  ): void {
+    const validated = IntegrationSettingsSchema.parse(settings);
+    try {
+      const result = this.database.prepare(
+        `UPDATE integration_settings
+            SET privacy_mode = ?, quiet_hours_enabled = ?, quiet_start_minutes = ?,
+                quiet_end_minutes = ?, settings_version = ?
+          WHERE id = 1 AND settings_version = ?`,
+      ).run(
+        validated.privacyMode,
+        validated.quietHoursEnabled ? 1 : 0,
+        validated.quietStartMinutes,
+        validated.quietEndMinutes,
+        validated.settingsVersion,
+        expectedVersion,
+      );
+      if (Number(result.changes) !== 1) {
+        throw new Error("Integration settings changed in another window.");
+      }
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.integration_settings_failed",
+        "Integration settings could not be saved.",
+        error,
+      );
+    }
+  }
+
+  recordDetectedGmailMessages(
+    messages: readonly GmailMessageReference[],
+  ): number {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const insert = this.database.prepare(
+        `INSERT OR IGNORE INTO gmail_message_detection
+           (message_id, thread_id, detected_at, announced_at)
+         VALUES (?, ?, ?, NULL)`,
+      );
+      let inserted = 0;
+      for (const message of messages) {
+        inserted += Number(insert.run(
+          message.messageId,
+          message.threadId,
+          message.detectedAt,
+        ).changes);
+      }
+      this.database.exec("COMMIT");
+      return inserted;
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.gmail_detection_failed",
+        "Gmail message identifiers could not be recorded.",
+        error,
+      );
+    }
+  }
+
+  loadPendingGmailMessages(limit: number): GmailMessageReference[] {
+    try {
+      const bounded = Math.max(1, Math.min(500, Math.trunc(limit)));
+      const rows = this.database.prepare(
+        `SELECT message_id, thread_id, detected_at
+           FROM gmail_message_detection
+          WHERE announced_at IS NULL
+          ORDER BY detected_at ASC, message_id ASC
+          LIMIT ?`,
+      ).all(bounded) as unknown as GmailMessageRow[];
+      return rows.map((row) => ({
+        detectedAt: row.detected_at,
+        messageId: row.message_id,
+        threadId: row.thread_id,
+      }));
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.gmail_pending_failed",
+        "Pending Gmail identifiers could not be loaded.",
+        error,
+      );
+    }
+  }
+
+  markGmailMessagesAnnounced(
+    messageIds: readonly string[],
+    announcedAt: number,
+  ): void {
+    if (messageIds.length === 0) return;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const update = this.database.prepare(
+        `UPDATE gmail_message_detection
+            SET announced_at = ?
+          WHERE message_id = ? AND announced_at IS NULL`,
+      );
+      let changed = 0;
+      for (const messageId of messageIds) {
+        changed += Number(update.run(announcedAt, messageId).changes);
+      }
+      if (changed !== messageIds.length) {
+        throw new Error("One or more Gmail messages were already announced.");
+      }
+      this.database.prepare(
+        `UPDATE integration_sync_state
+            SET last_announcement_at = ?, last_announcement_count = ?
+          WHERE id = 1`,
+      ).run(announcedAt, messageIds.length);
+      this.database.exec("COMMIT");
+    } catch (error: unknown) {
+      this.database.exec("ROLLBACK");
+      throw this.wrapAndLog(
+        "database.gmail_announcement_failed",
+        "Gmail announcement state could not be saved.",
+        error,
+      );
+    }
+  }
+
+  saveIntegrationSync(syncAt: number): void {
+    try {
+      this.database.prepare(
+        "UPDATE integration_sync_state SET last_sync_at = ? WHERE id = 1",
+      ).run(syncAt);
+    } catch (error: unknown) {
+      throw this.wrapAndLog(
+        "database.integration_sync_failed",
+        "Integration synchronization state could not be saved.",
         error,
       );
     }
@@ -910,6 +1107,50 @@ export class SqlitePetRepository
           ) STRICT;
           INSERT INTO character_selection (id, active_pack_id)
           VALUES (1, 'core:prototype-cat');
+        `);
+      }
+      if (fromVersion < 13) {
+        database.exec(`
+          CREATE TABLE integration_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            privacy_mode TEXT NOT NULL,
+            quiet_hours_enabled INTEGER NOT NULL CHECK (quiet_hours_enabled IN (0, 1)),
+            quiet_start_minutes INTEGER NOT NULL CHECK (quiet_start_minutes BETWEEN 0 AND 1439),
+            quiet_end_minutes INTEGER NOT NULL CHECK (quiet_end_minutes BETWEEN 0 AND 1439),
+            settings_version INTEGER NOT NULL CHECK (settings_version >= 0),
+            CHECK (quiet_start_minutes <> quiet_end_minutes)
+          ) STRICT;
+          CREATE TABLE integration_sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_sync_at INTEGER CHECK (last_sync_at IS NULL OR last_sync_at >= 0),
+            last_announcement_at INTEGER CHECK (last_announcement_at IS NULL OR last_announcement_at >= 0),
+            last_announcement_count INTEGER NOT NULL DEFAULT 0 CHECK (last_announcement_count >= 0)
+          ) STRICT;
+          CREATE TABLE gmail_message_detection (
+            message_id TEXT PRIMARY KEY,
+            thread_id TEXT NOT NULL,
+            detected_at INTEGER NOT NULL CHECK (detected_at >= 0),
+            announced_at INTEGER CHECK (announced_at IS NULL OR announced_at >= 0)
+          ) STRICT;
+          CREATE INDEX gmail_message_pending
+            ON gmail_message_detection (announced_at, detected_at, message_id);
+        `);
+        database.prepare(
+          `INSERT INTO integration_settings (
+             id, privacy_mode, quiet_hours_enabled, quiet_start_minutes,
+             quiet_end_minutes, settings_version
+           ) VALUES (1, ?, ?, ?, ?, ?)`,
+        ).run(
+          DEFAULT_INTEGRATION_SETTINGS.privacyMode,
+          DEFAULT_INTEGRATION_SETTINGS.quietHoursEnabled ? 1 : 0,
+          DEFAULT_INTEGRATION_SETTINGS.quietStartMinutes,
+          DEFAULT_INTEGRATION_SETTINGS.quietEndMinutes,
+          DEFAULT_INTEGRATION_SETTINGS.settingsVersion,
+        );
+        database.exec(`
+          INSERT INTO integration_sync_state (
+            id, last_sync_at, last_announcement_at, last_announcement_count
+          ) VALUES (1, NULL, NULL, 0);
         `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
