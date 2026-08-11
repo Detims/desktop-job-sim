@@ -112,7 +112,9 @@ export class IntegrationController {
     }
     this.connectionState = "connected";
     this.publishSnapshot();
-    await this.sync().catch(() => undefined);
+    await this.sync().catch((error: unknown) => {
+      if (error instanceof PersistenceError) throw error;
+    });
   }
 
   getSnapshot(): IntegrationSnapshot {
@@ -186,9 +188,13 @@ export class IntegrationController {
       this.durable.lastSyncAt === null ||
       now - this.durable.lastSyncAt >= GMAIL_POLL_INTERVAL_MS
     ) {
-      await this.sync().catch(() => undefined);
+      await this.sync().catch((error: unknown) => {
+        if (error instanceof PersistenceError) throw error;
+      });
     } else if (!isQuietTime(this.durable.settings, new Date(now))) {
-      await this.releasePending().catch(() => undefined);
+      await this.releasePending().catch((error: unknown) => {
+        if (error instanceof PersistenceError) throw error;
+      });
     }
   }
 

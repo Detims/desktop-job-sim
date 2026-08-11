@@ -1179,9 +1179,13 @@ app.whenReady().then(async () => {
     );
     integrationController.subscribe(publishIntegration);
     integrationController.subscribeNotifications(publishMailNotifications);
-    void integrationController.initialize();
+    void integrationController.initialize().catch((error: unknown) => {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+    });
     integrationPoller = setInterval(() => {
-      void integrationController?.tick();
+      void integrationController?.tick().catch((error: unknown) => {
+        if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      });
     }, 60_000);
     const persisted = repository.load();
     const persistedHomeLayout = repository.loadHomeLayout();

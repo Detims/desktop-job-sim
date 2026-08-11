@@ -13,6 +13,7 @@ import type {
 import { DiagnosticLogger } from "../persistence/diagnostic-logger.js";
 import type { GoogleCredentialVault } from "../persistence/google-credential-vault.js";
 import type { IntegrationRepository } from "../persistence/integration-repository.js";
+import { PersistenceError } from "../persistence/persistence-error.js";
 import {
   IntegrationController,
   type GmailReader,
@@ -174,5 +175,18 @@ describe("IntegrationController", () => {
     await value.controller.initialize();
     expect(clear).toHaveBeenCalledOnce();
     expect(value.controller.getSnapshot().connectionState).toBe("reauthRequired");
+  });
+
+  it("propagates persistence failures so the application can fail closed", async () => {
+    const value = fixture();
+    vi.spyOn(value.repository, "recordDetectedGmailMessages").mockImplementation(() => {
+      throw new PersistenceError(
+        "database.gmail_detection_failed",
+        "Gmail identifiers could not be recorded.",
+      );
+    });
+    await expect(value.controller.initialize()).rejects.toEqual(
+      expect.objectContaining({ eventCode: "database.gmail_detection_failed" }),
+    );
   });
 });
