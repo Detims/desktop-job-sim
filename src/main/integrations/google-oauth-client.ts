@@ -11,6 +11,7 @@ const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const REVOKE_ENDPOINT = "https://oauth2.googleapis.com/revoke";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const CALLBACK_PATH = "/oauth/callback";
+const REQUEST_TIMEOUT_MS = 30_000;
 
 type Fetcher = typeof fetch;
 
@@ -127,6 +128,9 @@ export class GoogleOAuthClient {
         }
       });
     });
+    // External-browser launch can fail before callback is awaited. Keep a
+    // timeout rejection handled while the main flow awaits the same promise.
+    void callback.catch(() => undefined);
 
     try {
       await this.options.openExternal(buildGoogleAuthorizationUrl({
@@ -179,6 +183,7 @@ export class GoogleOAuthClient {
       body: new URLSearchParams({ token }),
       headers: { "content-type": "application/x-www-form-urlencoded" },
       method: "POST",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
       throw new GoogleOAuthError("oauth.revoke_failed", "Google access could not be revoked remotely.");
@@ -192,6 +197,7 @@ export class GoogleOAuthClient {
         body,
         headers: { "content-type": "application/x-www-form-urlencoded" },
         method: "POST",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error: unknown) {
       throw new GoogleOAuthError("oauth.network_failed", "Google authentication is temporarily unavailable.", false, { cause: error });
@@ -218,7 +224,10 @@ export class GoogleOAuthClient {
   private async loadProfile(accessToken: string): Promise<string> {
     const response = await this.fetcher(
       "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-      { headers: { authorization: `Bearer ${accessToken}` } },
+      {
+        headers: { authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
     );
     if (!response.ok) {
       throw new GoogleOAuthError("oauth.profile_failed", "The connected Gmail profile could not be read.");

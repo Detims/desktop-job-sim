@@ -47,6 +47,22 @@ describe("EncryptedGoogleCredentialVault", () => {
     expect(await vault.load()).toBeNull();
   });
 
+  it("replaces an existing encrypted credential atomically", async () => {
+    const { vault } = fixture();
+    await vault.save({
+      accountEmail: "first@example.com",
+      refreshToken: "first-token",
+    });
+    await vault.save({
+      accountEmail: "second@example.com",
+      refreshToken: "second-token",
+    });
+    await expect(vault.load()).resolves.toEqual({
+      accountEmail: "second@example.com",
+      refreshToken: "second-token",
+    });
+  });
+
   it("fails closed without exposing a token in diagnostics", async () => {
     const { diagnosticPath, vault } = fixture({
       async decrypt() { throw new Error("decryption failed"); },

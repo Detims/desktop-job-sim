@@ -6,6 +6,7 @@ import type {
 } from "../../shared/integration-types.js";
 
 type Fetcher = typeof fetch;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 const MessageListSchema = z.object({
   messages: z.array(z.object({
@@ -99,6 +100,7 @@ export class GmailProvider {
     try {
       response = await this.fetcher(url, {
         headers: { authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (error: unknown) {
       throw new GmailProviderError(

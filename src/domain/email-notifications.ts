@@ -19,7 +19,9 @@ function clean(value: string, fallback: string): string {
 }
 
 function truncate(value: string, maximum: number): string {
-  return value.length <= maximum ? value : `${value.slice(0, maximum - 1).trimEnd()}…`;
+  return value.length <= maximum
+    ? value
+    : `${value.slice(0, maximum - 1).trimEnd()}…`;
 }
 
 export function notificationText(
