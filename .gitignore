@@ -21,3 +21,4 @@ Thumbs.db
 
 .editorconfig
 package-lock.json
+.env.local
