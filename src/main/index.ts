@@ -5,6 +5,7 @@ import {
   ipcMain,
   powerMonitor,
   screen,
+  shell,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
@@ -26,6 +27,14 @@ import {
   type WindowPoint,
 } from "../shared/contracts.js";
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
+import {
+  IntegrationCommandSchema,
+  MailNotificationIdSchema,
+} from "../shared/integration-contracts.js";
+import type {
+  IntegrationSnapshot,
+  MailNotification,
+} from "../shared/integration-types.js";
 import {
   ActivityPageRequestSchema,
   UpdateSettingsCommandSchema,
@@ -54,6 +63,7 @@ import { PersistenceSession } from "../persistence/persistence-session.js";
 import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
 import { CharacterPackStore } from "../persistence/character-pack-store.js";
+import { EncryptedGoogleCredentialVault } from "../persistence/google-credential-vault.js";
 import { createInitialHomeLayout } from "../domain/home-layout.js";
 import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
 import { careerEventDrafts } from "../domain/career.js";
@@ -62,6 +72,12 @@ import { HomeLayoutController } from "./home-layout-controller.js";
 import { PetController } from "./pet-controller.js";
 import { SettingsController } from "./settings-controller.js";
 import { CharacterController } from "./character-controller.js";
+import { IntegrationController } from "./integration-controller.js";
+import { ElectronStringProtector } from "./integrations/electron-string-protector.js";
+import { GmailProvider } from "./integrations/gmail-provider.js";
+import { loadGoogleClientId } from "./integrations/google-config.js";
+import { GoogleOAuthClient } from "./integrations/google-oauth-client.js";
+import { isSafeGmailTarget } from "../domain/email-notifications.js";
 import {
   calculateInitialPetBounds,
   clampPetBoundsToWorkAreas,
@@ -75,6 +91,7 @@ let homeWindow: BrowserWindow | null = null;
 let commerceWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let charactersWindow: BrowserWindow | null = null;
+let integrationsWindow: BrowserWindow | null = null;
 let dragOffset: WindowPoint | null = null;
 let scheduler: NodeJS.Timeout | null = null;
 let lastTickAt = performance.now();
@@ -93,6 +110,8 @@ let settingsController: SettingsController | null = null;
 let pendingReturnSummary: OfflineReturnSummary | null = null;
 let settingsRepository: SqlitePetRepository | null = null;
 let characterController: CharacterController | null = null;
+let integrationController: IntegrationController | null = null;
+let integrationPoller: NodeJS.Timeout | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
@@ -120,6 +139,13 @@ function requireCharacterController(): CharacterController {
     throw new Error("Character controller is not initialized.");
   }
   return characterController;
+}
+
+function requireIntegrationController(): IntegrationController {
+  if (integrationController === null) {
+    throw new Error("Integration controller is not initialized.");
+  }
+  return integrationController;
 }
 
 function handlePersistenceFailure(error: unknown): void {
@@ -173,6 +199,10 @@ function isCharactersSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return charactersWindow !== null && event.sender === charactersWindow.webContents;
 }
 
+function isIntegrationsSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return integrationsWindow !== null && event.sender === integrationsWindow.webContents;
+}
+
 function publishPatch(patch: PetPatch): void {
   if (petWindow !== null && !petWindow.isDestroyed()) {
     petWindow.webContents.send(IPC_CHANNELS.patch, patch);
@@ -219,6 +249,16 @@ function publishCharacterChange(change: {
       change.library,
     );
   }
+}
+
+function publishIntegration(snapshot: IntegrationSnapshot): void {
+  if (integrationsWindow !== null && !integrationsWindow.isDestroyed()) {
+    integrationsWindow.webContents.send(IPC_CHANNELS.integrationChanged, snapshot);
+  }
+}
+
+function publishMailNotifications(notifications: MailNotification[]): void {
+  publishToPetSurfaces(IPC_CHANNELS.mailNotificationsChanged, notifications);
 }
 
 function registerPetIpc(): void {
@@ -349,6 +389,62 @@ function registerPetIpc(): void {
       throw new Error("Unauthorized Characters-window request.");
     }
     openCharactersWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.openIntegrations, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized Integrations-window request.");
+    }
+    openIntegrationsWindow();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.integrationGetSnapshot, (event) => {
+    if (!isIntegrationsSender(event)) {
+      throw new Error("Unauthorized integration snapshot request.");
+    }
+    return requireIntegrationController().getSnapshot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.integrationCommand, async (event, input: unknown) => {
+    if (!isIntegrationsSender(event)) {
+      throw new Error("Unauthorized integration command.");
+    }
+    try {
+      return await requireIntegrationController().execute(
+        IntegrationCommandSchema.parse(input),
+      );
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.mailNotificationsGet, (event) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized mail-notification request.");
+    }
+    return requireIntegrationController().getNotifications();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.mailNotificationDismiss, (event, input: unknown) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized mail-notification dismissal.");
+    }
+    requireIntegrationController().dismissNotification(
+      MailNotificationIdSchema.parse(input),
+    );
+  });
+
+  ipcMain.handle(IPC_CHANNELS.mailNotificationOpen, async (event, input: unknown) => {
+    if (!isPetSender(event) && !isHomeSender(event)) {
+      throw new Error("Unauthorized mail-notification open request.");
+    }
+    const target = requireIntegrationController().takeNotificationTarget(
+      MailNotificationIdSchema.parse(input),
+    );
+    if (target !== null && isSafeGmailTarget(target)) {
+      await shell.openExternal(target);
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.characterGetLibrary, (event) => {
@@ -836,6 +932,37 @@ function createCharactersWindow(): BrowserWindow {
   return window;
 }
 
+function createIntegrationsWindow(): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const window = new BrowserWindow({
+    backgroundColor: "#f4f1e8",
+    height: 600,
+    minHeight: 480,
+    minWidth: 560,
+    show: false,
+    title: "Desktop Pet Integrations",
+    width: 700,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(currentDirectory, "../preload/integrations.cjs"),
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+  window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (integrationsWindow === window) integrationsWindow = null;
+  });
+  void window.loadFile(
+    join(currentDirectory, "../renderer/integrations/index.html"),
+  );
+  return window;
+}
+
 function createHomeWindow(): BrowserWindow {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
   const preloadPath = join(currentDirectory, "../preload/home.cjs");
@@ -968,6 +1095,16 @@ function openCharactersWindow(): void {
   charactersWindow.focus();
 }
 
+function openIntegrationsWindow(): void {
+  if (integrationsWindow === null || integrationsWindow.isDestroyed()) {
+    integrationsWindow = createIntegrationsWindow();
+    return;
+  }
+  if (integrationsWindow.isMinimized()) integrationsWindow.restore();
+  integrationsWindow.show();
+  integrationsWindow.focus();
+}
+
 function openHomeWindow(): void {
   if (homeWindow === null || homeWindow.isDestroyed()) {
     homeWindow = createHomeWindow();
@@ -1017,6 +1154,35 @@ app.whenReady().then(async () => {
     );
     await characterController.initialize();
     characterController.subscribe(publishCharacterChange);
+    const googleClientId = await loadGoogleClientId(app.getAppPath());
+    const googleOAuth = googleClientId === null
+      ? null
+      : new GoogleOAuthClient(googleClientId, {
+          openExternal: async (target) => {
+            const url = new URL(target);
+            if (url.protocol !== "https:" || url.hostname !== "accounts.google.com") {
+              throw new Error("Blocked an unexpected OAuth destination.");
+            }
+            await shell.openExternal(url.toString());
+          },
+        });
+    integrationController = new IntegrationController(
+      repository,
+      new EncryptedGoogleCredentialVault(
+        join(userDataPath, "credentials", "google.bin"),
+        new ElectronStringProtector(),
+        diagnosticLogger,
+      ),
+      googleOAuth,
+      new GmailProvider(),
+      diagnosticLogger,
+    );
+    integrationController.subscribe(publishIntegration);
+    integrationController.subscribeNotifications(publishMailNotifications);
+    void integrationController.initialize();
+    integrationPoller = setInterval(() => {
+      void integrationController?.tick();
+    }, 60_000);
     const persisted = repository.load();
     const persistedHomeLayout = repository.loadHomeLayout();
     const initialHomeLayout = persistedHomeLayout ?? createInitialHomeLayout();
@@ -1263,6 +1429,10 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", (event) => {
   isQuitting = true;
+  if (integrationPoller !== null) {
+    clearInterval(integrationPoller);
+    integrationPoller = null;
+  }
   try {
     saveCleanShutdown();
   } catch (error: unknown) {

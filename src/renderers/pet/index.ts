@@ -12,6 +12,7 @@ import {
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
 import { CharacterVisualRenderer } from "../shared/character-visual.js";
+import { initializeMailNotifications } from "../shared/mail-notifications.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
 
@@ -45,6 +46,7 @@ const careersMenuButton = requiredElement<HTMLButtonElement>(
 const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
 const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
 const charactersWindowButton = requiredElement<HTMLButtonElement>("#characters-window-button");
+const integrationsWindowButton = requiredElement<HTMLButtonElement>("#integrations-window-button");
 const cancelWorkButton = requiredElement<HTMLButtonElement>(
   "#cancel-work-button",
 );
@@ -219,6 +221,14 @@ async function openCharacters(): Promise<void> {
   }
 }
 
+async function openIntegrations(): Promise<void> {
+  try {
+    await window.desktopPet.openIntegrations();
+  } catch (error: unknown) {
+    statusText.value = error instanceof Error ? error.message : "Integrations could not be opened.";
+  }
+}
+
 window.desktopPet.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -362,8 +372,12 @@ careersMenuButton.addEventListener("click", () => {
 shopWindowButton.addEventListener("click", () => void openCommerce());
 settingsWindowButton.addEventListener("click", () => void openSettings());
 charactersWindowButton.addEventListener("click", () => void openCharacters());
+integrationsWindowButton.addEventListener("click", () => void openIntegrations());
 cancelWorkButton.addEventListener("click", () => {
   void dispatch({ type: "cancelActivity" });
 });
 
 console.info("Desktop pet renderer ready.", window.desktopPet.runtime);
+void initializeMailNotifications(shell, window.desktopPet).catch((error: unknown) => {
+  console.error("Mail notifications could not be initialized.", error);
+});

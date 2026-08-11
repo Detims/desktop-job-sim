@@ -63,3 +63,5 @@ export const GoogleCredentialSchema = z.object({
   accountEmail: z.string().email().max(320),
   refreshToken: z.string().min(1).max(8_192),
 });
+
+export const MailNotificationIdSchema = z.string().uuid();

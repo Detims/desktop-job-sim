@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const isCommerce = mode === "commerce";
   const isSettings = mode === "settings";
   const isCharacters = mode === "characters";
+  const isIntegrations = mode === "integrations";
   const bundleName = isManagement
     ? "management"
     : isHome
@@ -18,6 +19,8 @@ export default defineConfig(({ mode }) => {
           ? "settings"
           : isCharacters
             ? "characters"
+            : isIntegrations
+              ? "integrations"
           : "pet";
   const entry = isManagement
     ? "./src/preload/management.ts"
@@ -29,6 +32,8 @@ export default defineConfig(({ mode }) => {
           ? "./src/preload/settings.ts"
           : isCharacters
             ? "./src/preload/characters.ts"
+            : isIntegrations
+              ? "./src/preload/integrations.ts"
           : "./src/preload/index.ts";
 
   return {

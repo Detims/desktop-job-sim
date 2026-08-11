@@ -19,6 +19,7 @@ import type {
 } from "../shared/settings-activity-types.js";
 import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
 import type { CharacterVisual } from "../shared/character-types.js";
+import type { MailNotification } from "../shared/integration-types.js";
 
 export interface DesktopHomeBridge {
   dispatch(command: PetCommand): Promise<PetSnapshot>;
@@ -27,13 +28,18 @@ export interface DesktopHomeBridge {
   getReturnSummary(): Promise<OfflineReturnSummary | null>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
   getCharacterVisual(): Promise<CharacterVisual>;
+  getMailNotifications(): Promise<MailNotification[]>;
   openCommerce(tab: CommerceTab): Promise<void>;
   openCharacters(): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
+  openIntegrations(): Promise<void>;
   openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
   onCharacterChanged(listener: (visual: CharacterVisual) => void): () => void;
+  onMailNotificationsChanged(listener: (notifications: MailNotification[]) => void): () => void;
+  dismissMailNotification(notificationId: string): Promise<void>;
+  openMailNotification(notificationId: string): Promise<void>;
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
   dismissReturnSummary(): Promise<void>;
   ready(): void;
@@ -64,6 +70,9 @@ const bridge: DesktopHomeBridge = Object.freeze({
   getCharacterVisual() {
     return ipcRenderer.invoke(IPC_CHANNELS.characterGetVisual);
   },
+  getMailNotifications() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationsGet);
+  },
   openCommerce(tab: CommerceTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openCommerce, tab);
   },
@@ -72,6 +81,9 @@ const bridge: DesktopHomeBridge = Object.freeze({
   },
   openManagement(tab: ManagementTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openManagement, tab);
+  },
+  openIntegrations() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openIntegrations);
   },
   openSettings() {
     return ipcRenderer.invoke(IPC_CHANNELS.openSettings);
@@ -96,6 +108,17 @@ const bridge: DesktopHomeBridge = Object.freeze({
     };
     ipcRenderer.on(IPC_CHANNELS.characterChanged, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.characterChanged, handler);
+  },
+  onMailNotificationsChanged(listener: (notifications: MailNotification[]) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, notifications: MailNotification[]) => listener(notifications);
+    ipcRenderer.on(IPC_CHANNELS.mailNotificationsChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mailNotificationsChanged, handler);
+  },
+  dismissMailNotification(notificationId: string) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationDismiss, notificationId);
+  },
+  openMailNotification(notificationId: string) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationOpen, notificationId);
   },
   ready() {
     ipcRenderer.send(IPC_CHANNELS.homeReady);

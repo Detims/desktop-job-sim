@@ -25,6 +25,7 @@ import type {
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
 import { CharacterVisualRenderer } from "../shared/character-visual.js";
+import { initializeMailNotifications } from "../shared/mail-notifications.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
 
@@ -67,6 +68,7 @@ const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-butt
 const shopWindowButton = requiredElement<HTMLButtonElement>("#shop-window-button");
 const settingsWindowButton = requiredElement<HTMLButtonElement>("#settings-window-button");
 const charactersWindowButton = requiredElement<HTMLButtonElement>("#characters-window-button");
+const integrationsWindowButton = requiredElement<HTMLButtonElement>("#integrations-window-button");
 const statusText = requiredElement<HTMLOutputElement>("#status-text");
 const conditionStatus = requiredElement<HTMLElement>("#condition-status");
 const walletText = requiredElement<HTMLElement>("#wallet");
@@ -299,6 +301,14 @@ async function openCharacters(): Promise<void> {
   }
 }
 
+async function openIntegrations(): Promise<void> {
+  try {
+    await window.desktopHome.openIntegrations();
+  } catch (error: unknown) {
+    layoutStatus.value = error instanceof Error ? error.message : "Integrations could not be opened.";
+  }
+}
+
 window.desktopHome.onPatch((patch) => {
   const nextState = applyPatch(currentState, patch);
   if (nextState === null) {
@@ -457,8 +467,15 @@ careersMenuButton.addEventListener("click", () => void openManagement("careers")
 shopWindowButton.addEventListener("click", () => void openCommerce());
 settingsWindowButton.addEventListener("click", () => void openSettings());
 charactersWindowButton.addEventListener("click", () => void openCharacters());
+integrationsWindowButton.addEventListener("click", () => void openIntegrations());
 cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelActivity" }));
 
 renderState(currentState);
 updateDirtyState();
 window.desktopHome.ready();
+void initializeMailNotifications(
+  requiredElement<HTMLElement>(".room-frame"),
+  window.desktopHome,
+).catch((error: unknown) => {
+  console.error("Mail notifications could not be initialized in Home.", error);
+});

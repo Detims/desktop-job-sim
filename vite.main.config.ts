@@ -19,6 +19,7 @@ export default defineConfig({
         "fs",
         "node:fs",
         "node:fs/promises",
+        "node:http",
         "node:crypto",
         "node:path",
         "node:perf_hooks",

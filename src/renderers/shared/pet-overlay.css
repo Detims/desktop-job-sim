@@ -222,3 +222,58 @@
 .room-frame #pet-stats-overlay .overlay-content {
   height: 170px;
 }
+.mail-speech-bubble {
+  align-items: flex-start;
+  background: rgb(255 255 255 / 97%);
+  border: 1px solid rgb(51 65 85 / 24%);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 24%);
+  color: #1e293b;
+  display: flex;
+  font: 600 12px/1.35 "Segoe UI", sans-serif;
+  gap: 5px;
+  left: 10px;
+  padding: 7px 7px 7px 10px;
+  position: absolute;
+  right: 10px;
+  top: 58px;
+  z-index: 6;
+}
+
+.mail-speech-bubble::after {
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 9px solid rgb(255 255 255 / 97%);
+  bottom: -8px;
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.mail-speech-message,
+.mail-speech-close {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin: 0;
+}
+
+.mail-speech-message {
+  flex: 1;
+  padding: 1px 2px;
+  text-align: left;
+}
+
+.mail-speech-close {
+  border-radius: 999px;
+  font-size: 17px;
+  line-height: 1;
+  padding: 0 3px 2px;
+}
+
+.mail-speech-close:hover {
+  background: #e2e8f0;
+}

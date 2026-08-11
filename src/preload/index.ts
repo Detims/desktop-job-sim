@@ -16,6 +16,7 @@ import type {
 } from "../shared/settings-activity-types.js";
 import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
 import type { CharacterVisual } from "../shared/character-types.js";
+import type { MailNotification } from "../shared/integration-types.js";
 
 export interface DesktopPetBridge {
   beginDrag(point: WindowPoint): void;
@@ -26,14 +27,19 @@ export interface DesktopPetBridge {
   getReturnSummary(): Promise<OfflineReturnSummary | null>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
   getCharacterVisual(): Promise<CharacterVisual>;
+  getMailNotifications(): Promise<MailNotification[]>;
   openCommerce(tab: CommerceTab): Promise<void>;
   openCharacters(): Promise<void>;
   openHome(): Promise<void>;
+  openIntegrations(): Promise<void>;
   openManagement(tab: ManagementTab): Promise<void>;
   openSettings(): Promise<void>;
   onPatch(listener: (patch: PetPatch) => void): () => void;
   onActivityEvent(listener: (event: MeaningfulEvent) => void): () => void;
   onCharacterChanged(listener: (visual: CharacterVisual) => void): () => void;
+  onMailNotificationsChanged(listener: (notifications: MailNotification[]) => void): () => void;
+  dismissMailNotification(notificationId: string): Promise<void>;
+  openMailNotification(notificationId: string): Promise<void>;
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
   dismissReturnSummary(): Promise<void>;
   readonly runtime: {
@@ -70,6 +76,9 @@ const bridge: DesktopPetBridge = Object.freeze({
   getCharacterVisual() {
     return ipcRenderer.invoke(IPC_CHANNELS.characterGetVisual);
   },
+  getMailNotifications() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationsGet);
+  },
   openCommerce(tab: CommerceTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openCommerce, tab);
   },
@@ -78,6 +87,9 @@ const bridge: DesktopPetBridge = Object.freeze({
   },
   openHome() {
     return ipcRenderer.invoke(IPC_CHANNELS.openHome);
+  },
+  openIntegrations() {
+    return ipcRenderer.invoke(IPC_CHANNELS.openIntegrations);
   },
   openManagement(tab: ManagementTab) {
     return ipcRenderer.invoke(IPC_CHANNELS.openManagement, tab);
@@ -108,6 +120,17 @@ const bridge: DesktopPetBridge = Object.freeze({
     };
     ipcRenderer.on(IPC_CHANNELS.characterChanged, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.characterChanged, handler);
+  },
+  onMailNotificationsChanged(listener: (notifications: MailNotification[]) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, notifications: MailNotification[]) => listener(notifications);
+    ipcRenderer.on(IPC_CHANNELS.mailNotificationsChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mailNotificationsChanged, handler);
+  },
+  dismissMailNotification(notificationId: string) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationDismiss, notificationId);
+  },
+  openMailNotification(notificationId: string) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mailNotificationOpen, notificationId);
   },
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void) {
     const handler = (_event: Electron.IpcRendererEvent, summary: OfflineReturnSummary | null) => {
