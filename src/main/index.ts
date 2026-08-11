@@ -473,9 +473,9 @@ function registerPetIpc(): void {
       clearTimeout(homeReadyTimeout);
       homeReadyTimeout = null;
     }
-    petWindow?.hide();
     homeWindow.show();
     homeWindow.focus();
+    releaseDesktopPet();
   });
 
   ipcMain.on(IPC_CHANNELS.requestDesktop, (event) => {
@@ -536,10 +536,17 @@ function registerPetIpc(): void {
 }
 
 function restoreDesktopPet(): void {
-  if (isQuitting || petWindow === null || petWindow.isDestroyed()) {
-    return;
+  if (isQuitting) return;
+  if (petWindow === null || petWindow.isDestroyed()) {
+    petWindow = createPetWindow();
+  } else {
+    petWindow.show();
   }
-  petWindow.show();
+}
+
+function releaseDesktopPet(): void {
+  if (petWindow === null || petWindow.isDestroyed()) return;
+  petWindow.destroy();
 }
 
 function handleHomeUnavailable(eventCode: string, cause: unknown): void {
