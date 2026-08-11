@@ -59,7 +59,7 @@ export class GmailProvider {
       ));
       for (const message of payload.messages ?? []) {
         messages.push({
-          detectedAt,
+          detectedAt: Math.max(0, detectedAt - messages.length),
           messageId: message.id,
           threadId: message.threadId,
         });
