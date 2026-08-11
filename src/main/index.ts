@@ -11,7 +11,7 @@ import {
 } from "electron";
 import { dirname, extname, join } from "node:path";
 import { performance } from "node:perf_hooks";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   SaveHomeLayoutCommandSchema,
@@ -756,6 +756,7 @@ function createPetWindow(): BrowserWindow {
   window.setMenuBarVisibility(false);
 
   secureWindow(window);
+  configureIntegrationChildHost(window);
 
   window.once("ready-to-show", () => {
     window.show();
@@ -932,35 +933,48 @@ function createCharactersWindow(): BrowserWindow {
   return window;
 }
 
-function createIntegrationsWindow(): BrowserWindow {
+function configureIntegrationChildHost(host: BrowserWindow): void {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));
-  const window = new BrowserWindow({
-    backgroundColor: "#f4f1e8",
-    height: 600,
-    minHeight: 480,
-    minWidth: 560,
-    show: false,
-    title: "Desktop Pet Integrations",
-    width: 700,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: join(currentDirectory, "../preload/integrations.cjs"),
-      sandbox: true,
-      webSecurity: true,
-    },
+  const rendererPath = join(currentDirectory, "../renderer/integrations/index.html");
+  const rendererUrl = pathToFileURL(rendererPath).toString();
+  host.webContents.setWindowOpenHandler(({ frameName, url }) => {
+    if (frameName !== "desktop-pet-integrations" || url !== rendererUrl) {
+      return { action: "deny" };
+    }
+    return {
+      action: "allow",
+      overrideBrowserWindowOptions: {
+        backgroundColor: "#f4f1e8",
+        height: 600,
+        minHeight: 480,
+        minWidth: 560,
+        title: "Desktop Pet Integrations",
+        width: 700,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          preload: join(currentDirectory, "../preload/integrations.cjs"),
+          sandbox: true,
+          webSecurity: true,
+        },
+      },
+    };
   });
-
-  window.setMenuBarVisibility(false);
-  secureWindow(window);
-  window.once("ready-to-show", () => window.show());
-  window.on("closed", () => {
-    if (integrationsWindow === window) integrationsWindow = null;
+  host.webContents.on("did-create-window", (child, details) => {
+    if (
+      details.frameName !== "desktop-pet-integrations" ||
+      details.url !== rendererUrl
+    ) {
+      child.destroy();
+      return;
+    }
+    integrationsWindow = child;
+    child.setMenuBarVisibility(false);
+    secureWindow(child);
+    child.on("closed", () => {
+      if (integrationsWindow === child) integrationsWindow = null;
+    });
   });
-  void window.loadFile(
-    join(currentDirectory, "../renderer/integrations/index.html"),
-  );
-  return window;
 }
 
 function createHomeWindow(): BrowserWindow {
@@ -988,6 +1002,7 @@ function createHomeWindow(): BrowserWindow {
   homeCloseConfirmed = false;
   window.setMenuBarVisibility(false);
   secureWindow(window);
+  configureIntegrationChildHost(window);
 
   window.on("close", (event) => {
     if (isQuitting || homeCloseConfirmed || !homeIsDirty) {
@@ -1097,7 +1112,26 @@ function openCharactersWindow(): void {
 
 function openIntegrationsWindow(): void {
   if (integrationsWindow === null || integrationsWindow.isDestroyed()) {
-    integrationsWindow = createIntegrationsWindow();
+    const host = homeWindow !== null && !homeWindow.isDestroyed()
+      ? homeWindow
+      : petWindow;
+    if (host === null || host.isDestroyed()) {
+      throw new Error("A pet surface is required to open Integrations.");
+    }
+    const currentDirectory = dirname(fileURLToPath(import.meta.url));
+    const rendererUrl = pathToFileURL(
+      join(currentDirectory, "../renderer/integrations/index.html"),
+    ).toString();
+    void host.webContents.executeJavaScript(
+      `window.open(${JSON.stringify(rendererUrl)}, "desktop-pet-integrations"); undefined`,
+    ).catch((error: unknown) => {
+      diagnosticLogger?.write(
+        "warning",
+        "integration.window_open_failed",
+        "The Integrations window could not be opened.",
+        { cause: error instanceof Error ? error.message : String(error) },
+      );
+    });
     return;
   }
   if (integrationsWindow.isMinimized()) integrationsWindow.restore();
