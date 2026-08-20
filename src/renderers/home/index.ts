@@ -418,6 +418,12 @@ pixi.canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (pointIsOnPet(scenePoint(event))) setStatsOpen(!statsOpen);
 });
+pixi.canvas.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    void dispatch({ type: "pet" });
+  }
+});
 document.addEventListener("pointerdown", (event) => {
   if (!statsOpen || event.button !== 0 || statsOverlay.contains(event.target as Node)) return;
   if (event.target !== pixi.canvas || !pointIsOnPet(scenePoint(event))) setStatsOpen(false);
@@ -472,6 +478,14 @@ cancelWorkButton.addEventListener("click", () => void dispatch({ type: "cancelAc
 
 renderState(currentState);
 updateDirtyState();
+function applyDisplaySettings(settings: Awaited<ReturnType<typeof window.desktopHome.getSettings>>) {
+  document.body.classList.toggle("quiet-mode", settings.quietMode);
+  document.body.classList.toggle("reduced-motion", settings.reducedMotion);
+  characterVisual.setReducedMotion(settings.reducedMotion);
+  pixi.ticker.maxFPS = settings.reducedMotion ? 2 : 12;
+}
+applyDisplaySettings(await window.desktopHome.getSettings());
+window.desktopHome.onSettingsChanged(applyDisplaySettings);
 window.desktopHome.ready();
 void initializeMailNotifications(
   requiredElement<HTMLElement>(".room-frame"),

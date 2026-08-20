@@ -43,6 +43,7 @@ export class CharacterVisualRenderer {
   private assetUrl: string | null = null;
   private current: AnimatedSprite | Graphics | null = null;
   private presentation: Presentation = "idle";
+  private reducedMotion = false;
   private sprite: AnimatedSprite | null = null;
   private visual: CharacterVisual | null = null;
 
@@ -81,7 +82,8 @@ export class CharacterVisualRenderer {
       this.options.maxHeight / visual.canvas.height,
     ));
     sprite.position.set(this.options.x, this.options.y);
-    sprite.play();
+    if (this.reducedMotion) sprite.gotoAndStop(0);
+    else sprite.play();
 
     const previous = this.current;
     const previousAssetUrl = this.assetUrl;
@@ -119,11 +121,19 @@ export class CharacterVisualRenderer {
     this.sprite.textures = textures;
     this.sprite.loop = animation.loop;
     this.sprite.animationSpeed = animation.fps / 60;
-    this.sprite.play();
+    if (this.reducedMotion) this.sprite.gotoAndStop(0);
+    else this.sprite.play();
     this.appliedState = state;
     for (const texture of previousTextures) {
       if (texture instanceof Texture) texture.destroy(false);
     }
+  }
+
+  setReducedMotion(reducedMotion: boolean): void {
+    this.reducedMotion = reducedMotion;
+    if (this.sprite === null) return;
+    if (reducedMotion) this.sprite.gotoAndStop(0);
+    else this.sprite.play();
   }
 
   private showFallback(): void {

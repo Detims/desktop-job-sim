@@ -2,6 +2,7 @@
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; min-height: 100%; }
 body { background: radial-gradient(circle at 85% 0%, rgb(250 190 83 / 24%), transparent 30%), #f4f1e8; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #1b73e8; outline-offset: 2px; }
 .settings-shell { margin: 0 auto; max-width: 680px; min-height: 100vh; padding: 30px 34px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 30px; letter-spacing: -0.03em; }

@@ -3,9 +3,12 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  Menu,
+  nativeImage,
   powerMonitor,
   screen,
   shell,
+  Tray,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
@@ -114,6 +117,7 @@ let settingsRepository: SqlitePetRepository | null = null;
 let characterController: CharacterController | null = null;
 let integrationController: IntegrationController | null = null;
 let integrationPoller: NodeJS.Timeout | null = null;
+let tray: Tray | null = null;
 
 function requirePetController(): PetController {
   if (petController === null) {
@@ -235,12 +239,92 @@ function publishActivityEvent(event: MeaningfulEvent): void {
 }
 
 function publishSettings(settings: AppSettings): void {
+  publishToPetSurfaces(IPC_CHANNELS.settingsChanged, settings);
   if (settingsWindow !== null && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
   }
   if (onboardingWindow !== null && !onboardingWindow.isDestroyed()) {
     onboardingWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
   }
+}
+
+function updateSettingFromMain(update: Parameters<SettingsController["update"]>[0]["update"]): void {
+  try {
+    const settings = requireSettingsController().getSnapshot();
+    requireSettingsController().update({
+      baseVersion: settings.settingsVersion,
+      update,
+    }, Date.now());
+  } catch (error: unknown) {
+    if (error instanceof PersistenceError) handlePersistenceFailure(error);
+    else diagnosticLogger?.write("warning", "settings.tray_update_failed", "A tray setting could not be applied.", {
+      cause: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function showPetSurface(): void {
+  if (homeWindow !== null && !homeWindow.isDestroyed()) {
+    homeWindow.show();
+    homeWindow.focus();
+    return;
+  }
+  if (petWindow === null || petWindow.isDestroyed()) {
+    if (requireSettingsController().getSnapshot().onboardingComplete) petWindow = createPetWindow();
+    return;
+  }
+  petWindow.show();
+  petWindow.focus();
+}
+
+function refreshTrayMenu(): void {
+  if (tray === null || settingsController === null) return;
+  const settings = settingsController.getSnapshot();
+  const petVisible = petWindow !== null && !petWindow.isDestroyed() && petWindow.isVisible();
+  tray.setToolTip(settings.petName.length > 0 ? `${settings.petName} - Desktop Pet` : "Desktop Pet");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      click: () => {
+        if (petVisible) petWindow?.hide();
+        else showPetSurface();
+        refreshTrayMenu();
+      },
+      label: petVisible ? "Hide Pet" : "Show Pet",
+    },
+    { type: "separator" },
+    {
+      checked: settings.clickThrough,
+      click: () => updateSettingFromMain({ clickThrough: !settings.clickThrough, type: "setClickThrough" }),
+      label: "Click-through",
+      type: "checkbox",
+    },
+    {
+      checked: settings.quietMode,
+      click: () => updateSettingFromMain({ quietMode: !settings.quietMode, type: "setQuietMode" }),
+      label: "Quiet Mode",
+      type: "checkbox",
+    },
+    {
+      checked: settings.alwaysOnTop,
+      click: () => updateSettingFromMain({ alwaysOnTop: !settings.alwaysOnTop, type: "setAlwaysOnTop" }),
+      label: "Always on Top",
+      type: "checkbox",
+    },
+    { type: "separator" },
+    { click: openSettingsWindow, label: "Settings" },
+    { click: () => app.quit(), label: "Exit" },
+  ]));
+}
+
+function createTray(): void {
+  if (tray !== null) return;
+  const icon = nativeImage.createFromPath(join(
+    app.getAppPath(),
+    "content/core/characters/prototype-cat/idle.png",
+  )).resize({ height: 16, width: 16 });
+  tray = new Tray(icon);
+  tray.on("double-click", showPetSurface);
+  refreshTrayMenu();
 }
 
 function publishCharacterChange(change: {
@@ -280,7 +364,8 @@ function registerPetIpc(): void {
   ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
     if (
       (settingsWindow === null || event.sender !== settingsWindow.webContents) &&
-      (onboardingWindow === null || event.sender !== onboardingWindow.webContents)
+      (onboardingWindow === null || event.sender !== onboardingWindow.webContents) &&
+      !isPetSender(event) && !isHomeSender(event)
     ) {
       throw new Error("Unauthorized settings request.");
     }
@@ -796,7 +881,10 @@ function createPetWindow(): BrowserWindow {
 
   window.once("ready-to-show", () => {
     window.show();
+    refreshTrayMenu();
   });
+
+  window.on("hide", refreshTrayMenu);
 
   window.on("closed", () => {
     if (homeReadyTimeout !== null) {
@@ -806,6 +894,7 @@ function createPetWindow(): BrowserWindow {
     if (petWindow === window) {
       petWindow = null;
     }
+    refreshTrayMenu();
   });
 
   window.on("session-end", () => {
@@ -1467,6 +1556,7 @@ app.whenReady().then(async () => {
         petWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
       }
       publishSettings(settings);
+      refreshTrayMenu();
       if (
         settings.onboardingComplete &&
         onboardingWindow !== null &&
@@ -1481,6 +1571,7 @@ app.whenReady().then(async () => {
     registerPetIpc();
     petController.subscribe(publishPatch);
     startScheduler();
+    createTray();
   } catch (error: unknown) {
     diagnosticLogger?.write(
       "error",

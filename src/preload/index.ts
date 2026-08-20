@@ -12,6 +12,7 @@ import { IPC_CHANNELS } from "../shared/ipc-channels.js";
 import type {
   ActivityPage,
   ActivityPageRequest,
+  AppSettings,
   MeaningfulEvent,
 } from "../shared/settings-activity-types.js";
 import type { OfflineReturnSummary } from "../shared/offline-summary-types.js";
@@ -25,6 +26,7 @@ export interface DesktopPetBridge {
   endDrag(): void;
   getSnapshot(): Promise<PetSnapshot>;
   getReturnSummary(): Promise<OfflineReturnSummary | null>;
+  getSettings(): Promise<AppSettings>;
   getActivityPage(request: ActivityPageRequest): Promise<ActivityPage>;
   getCharacterVisual(): Promise<CharacterVisual>;
   getMailNotifications(): Promise<MailNotification[]>;
@@ -41,6 +43,7 @@ export interface DesktopPetBridge {
   dismissMailNotification(notificationId: string): Promise<void>;
   openMailNotification(notificationId: string): Promise<void>;
   onReturnSummaryChanged(listener: (summary: OfflineReturnSummary | null) => void): () => void;
+  onSettingsChanged(listener: (settings: AppSettings) => void): () => void;
   dismissReturnSummary(): Promise<void>;
   readonly runtime: {
     readonly bridgeVersion: 1;
@@ -66,6 +69,9 @@ const bridge: DesktopPetBridge = Object.freeze({
   },
   getReturnSummary() {
     return ipcRenderer.invoke(IPC_CHANNELS.getReturnSummary);
+  },
+  getSettings() {
+    return ipcRenderer.invoke(IPC_CHANNELS.getSettings);
   },
   dismissReturnSummary() {
     return ipcRenderer.invoke(IPC_CHANNELS.dismissReturnSummary);
@@ -138,6 +144,11 @@ const bridge: DesktopPetBridge = Object.freeze({
     };
     ipcRenderer.on(IPC_CHANNELS.returnSummaryChanged, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.returnSummaryChanged, handler);
+  },
+  onSettingsChanged(listener: (settings: AppSettings) => void) {
+    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings) => listener(settings);
+    ipcRenderer.on(IPC_CHANNELS.settingsChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.settingsChanged, handler);
   },
   runtime: Object.freeze({
     bridgeVersion: 1,

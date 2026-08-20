@@ -175,6 +175,33 @@ function App() {
           />
         </label>
         <label className="setting-row">
+          <span><strong>Click-through</strong><small>Let pointer input pass through the pet. Use the tray menu to turn this off.</small></span>
+          <input
+            checked={settings.clickThrough}
+            disabled={saving}
+            onChange={(event) => void update({ clickThrough: event.currentTarget.checked, type: "setClickThrough" })}
+            type="checkbox"
+          />
+        </label>
+        <label className="setting-row">
+          <span><strong>Quiet mode</strong><small>Hide nonessential pet speech and integration notification bubbles.</small></span>
+          <input
+            checked={settings.quietMode}
+            disabled={saving}
+            onChange={(event) => void update({ quietMode: event.currentTarget.checked, type: "setQuietMode" })}
+            type="checkbox"
+          />
+        </label>
+        <label className="setting-row">
+          <span><strong>Reduced motion</strong><small>Use static character frames and minimize interface animation.</small></span>
+          <input
+            checked={settings.reducedMotion}
+            disabled={saving}
+            onChange={(event) => void update({ reducedMotion: event.currentTarget.checked, type: "setReducedMotion" })}
+            type="checkbox"
+          />
+        </label>
+        <label className="setting-row">
           <span><strong>Activity history</strong><small>Choose how long routine Activity entries are retained.</small></span>
           <select
             disabled={saving}

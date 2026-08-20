@@ -194,6 +194,32 @@ describe("SettingsController", () => {
     expect(activity).toHaveBeenCalledTimes(2);
   });
 
+  it("persists recoverable desktop and accessibility controls", () => {
+    const storage = repository();
+    const controller = new SettingsController(DEFAULT_APP_SETTINGS, storage);
+    const clickThrough = controller.update({
+      baseVersion: 0,
+      update: { clickThrough: true, type: "setClickThrough" },
+    }, 100);
+    const quiet = controller.update({
+      baseVersion: 1,
+      update: { quietMode: true, type: "setQuietMode" },
+    }, 200);
+    const reduced = controller.update({
+      baseVersion: 2,
+      update: { reducedMotion: true, type: "setReducedMotion" },
+    }, 300);
+
+    expect(clickThrough.clickThrough).toBe(true);
+    expect(quiet.quietMode).toBe(true);
+    expect(reduced).toEqual(expect.objectContaining({
+      clickThrough: true,
+      quietMode: true,
+      reducedMotion: true,
+      settingsVersion: 3,
+    }));
+  });
+
   it("does not publish or mutate when persistence fails", () => {
     const storage = repository();
     vi.mocked(storage.saveSettings).mockImplementation(() => {

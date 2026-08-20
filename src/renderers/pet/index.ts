@@ -333,6 +333,13 @@ pixi.canvas.addEventListener("contextmenu", (event) => {
   setStatsOverlayOpen(!statsOverlayOpen);
 });
 
+pixi.canvas.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    void dispatch({ type: "pet" });
+  }
+});
+
 document.addEventListener("pointerdown", (event) => {
   if (
     statsOverlayOpen &&
@@ -378,6 +385,14 @@ cancelWorkButton.addEventListener("click", () => {
 });
 
 console.info("Desktop pet renderer ready.", window.desktopPet.runtime);
+function applyDisplaySettings(settings: Awaited<ReturnType<typeof window.desktopPet.getSettings>>) {
+  document.body.classList.toggle("quiet-mode", settings.quietMode);
+  document.body.classList.toggle("reduced-motion", settings.reducedMotion);
+  characterVisual.setReducedMotion(settings.reducedMotion);
+  pixi.ticker.maxFPS = settings.reducedMotion ? 2 : 12;
+}
+applyDisplaySettings(await window.desktopPet.getSettings());
+window.desktopPet.onSettingsChanged(applyDisplaySettings);
 void initializeMailNotifications(shell, window.desktopPet).catch((error: unknown) => {
   console.error("Mail notifications could not be initialized.", error);
 });
