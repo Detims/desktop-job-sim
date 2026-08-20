@@ -51,7 +51,7 @@ import type { MemoryRepository } from "./memory-repository.js";
 import type { IntegrationRepository } from "./integration-repository.js";
 import { PersistenceError } from "./persistence-error.js";
 
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 14;
 
 export interface SqliteRepositoryPaths {
   backupPath: string;
@@ -81,8 +81,13 @@ interface SettingsRow {
   autonomy_mode: string;
   autonomy_reserve: number;
   care_intensity: string;
+  click_through: number;
   offline_autonomy_enabled: number;
   offline_reward_multiplier: number;
+  onboarding_complete: number;
+  pet_name: string;
+  quiet_mode: number;
+  reduced_motion: number;
   settings_version: number;
 }
 
@@ -277,7 +282,8 @@ export class SqlitePetRepository
         .prepare(
           `SELECT care_intensity, always_on_top, autonomy_mode, autonomy_reserve,
                   offline_autonomy_enabled, offline_reward_multiplier,
-                  activity_retention, settings_version
+                  activity_retention, click_through, onboarding_complete,
+                  pet_name, quiet_mode, reduced_motion, settings_version
              FROM app_settings
             WHERE id = 1`,
         )
@@ -291,8 +297,13 @@ export class SqlitePetRepository
         autonomyMode: row.autonomy_mode,
         autonomyReserve: row.autonomy_reserve,
         careIntensity: row.care_intensity,
+        clickThrough: row.click_through === 1,
         offlineAutonomyEnabled: row.offline_autonomy_enabled === 1,
         offlineRewardMultiplier: row.offline_reward_multiplier,
+        onboardingComplete: row.onboarding_complete === 1,
+        petName: row.pet_name,
+        quietMode: row.quiet_mode === 1,
+        reducedMotion: row.reduced_motion === 1,
         settingsVersion: row.settings_version,
       });
     } catch (error: unknown) {
@@ -834,7 +845,9 @@ export class SqlitePetRepository
           `UPDATE app_settings
               SET care_intensity = ?, always_on_top = ?, autonomy_mode = ?,
                   autonomy_reserve = ?, offline_autonomy_enabled = ?,
-                  offline_reward_multiplier = ?, activity_retention = ?, settings_version = ?
+                  offline_reward_multiplier = ?, activity_retention = ?,
+                  click_through = ?, onboarding_complete = ?, pet_name = ?,
+                  quiet_mode = ?, reduced_motion = ?, settings_version = ?
             WHERE id = 1`,
         )
         .run(
@@ -845,6 +858,11 @@ export class SqlitePetRepository
           validated.offlineAutonomyEnabled ? 1 : 0,
           validated.offlineRewardMultiplier,
           validated.activityRetention,
+          validated.clickThrough ? 1 : 0,
+          validated.onboardingComplete ? 1 : 0,
+          validated.petName,
+          validated.quietMode ? 1 : 0,
+          validated.reducedMotion ? 1 : 0,
           validated.settingsVersion,
         );
       this.insertEvent(event);
@@ -1151,6 +1169,24 @@ export class SqlitePetRepository
           INSERT INTO integration_sync_state (
             id, last_sync_at, last_announcement_at, last_announcement_count
           ) VALUES (1, NULL, NULL, 0);
+        `);
+      }
+      if (fromVersion < 14) {
+        database.exec(`
+          ALTER TABLE app_settings
+            ADD COLUMN click_through INTEGER NOT NULL DEFAULT 0
+              CHECK (click_through IN (0, 1));
+          ALTER TABLE app_settings
+            ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0
+              CHECK (onboarding_complete IN (0, 1));
+          ALTER TABLE app_settings
+            ADD COLUMN pet_name TEXT NOT NULL DEFAULT '';
+          ALTER TABLE app_settings
+            ADD COLUMN quiet_mode INTEGER NOT NULL DEFAULT 0
+              CHECK (quiet_mode IN (0, 1));
+          ALTER TABLE app_settings
+            ADD COLUMN reduced_motion INTEGER NOT NULL DEFAULT 0
+              CHECK (reduced_motion IN (0, 1));
         `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);

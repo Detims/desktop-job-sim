@@ -8,6 +8,7 @@ export type {
   AppSettings,
   AutonomyMode,
   CareIntensity,
+  CompleteOnboardingCommand,
   EventDetailValue,
   MeaningfulEvent,
   MeaningfulEventDraft,
@@ -46,8 +47,13 @@ export const AppSettingsSchema = z.object({
   autonomyMode: AutonomyModeSchema,
   autonomyReserve: z.number().int().min(0).max(1_000),
   careIntensity: CareIntensitySchema,
+  clickThrough: z.boolean(),
   offlineAutonomyEnabled: z.boolean(),
   offlineRewardMultiplier: OfflineRewardMultiplierSchema,
+  onboardingComplete: z.boolean(),
+  petName: z.string().trim().max(40),
+  quietMode: z.boolean(),
+  reducedMotion: z.boolean(),
   settingsVersion: z.number().int().nonnegative(),
 });
 
@@ -58,8 +64,18 @@ export const SettingsUpdateSchema = z.discriminatedUnion("type", [
   z.object({ autonomyReserve: z.number().int().min(0).max(1_000), type: z.literal("setAutonomyReserve") }),
   z.object({ offlineAutonomyEnabled: z.boolean(), type: z.literal("setOfflineAutonomyEnabled") }),
   z.object({ offlineRewardMultiplier: OfflineRewardMultiplierSchema, type: z.literal("setOfflineRewardMultiplier") }),
+  z.object({ clickThrough: z.boolean(), type: z.literal("setClickThrough") }),
+  z.object({ quietMode: z.boolean(), type: z.literal("setQuietMode") }),
+  z.object({ reducedMotion: z.boolean(), type: z.literal("setReducedMotion") }),
   z.object({ activityRetention: ActivityRetentionSchema, type: z.literal("setActivityRetention") }),
 ]);
+
+export const CompleteOnboardingCommandSchema = z.object({
+  autonomyMode: AutonomyModeSchema,
+  baseVersion: z.number().int().nonnegative(),
+  careIntensity: CareIntensitySchema,
+  petName: z.string().trim().min(1).max(40),
+});
 
 export const UpdateSettingsCommandSchema = z.object({
   baseVersion: z.number().int().nonnegative(),
@@ -108,6 +124,10 @@ export const MeaningfulEventTypeSchema = z.enum([
   "settings.offline_autonomy_changed",
   "settings.offline_reward_changed",
   "settings.always_on_top_changed",
+  "settings.click_through_changed",
+  "settings.quiet_mode_changed",
+  "settings.reduced_motion_changed",
+  "settings.onboarding_completed",
   "settings.retention_changed",
 ]);
 

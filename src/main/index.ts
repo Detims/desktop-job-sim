@@ -37,6 +37,7 @@ import type {
 } from "../shared/integration-types.js";
 import {
   ActivityPageRequestSchema,
+  CompleteOnboardingCommandSchema,
   UpdateSettingsCommandSchema,
 } from "../shared/settings-activity-contracts.js";
 import {
@@ -92,6 +93,7 @@ let commerceWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let charactersWindow: BrowserWindow | null = null;
 let integrationsWindow: BrowserWindow | null = null;
+let onboardingWindow: BrowserWindow | null = null;
 let dragOffset: WindowPoint | null = null;
 let scheduler: NodeJS.Timeout | null = null;
 let lastTickAt = performance.now();
@@ -236,6 +238,9 @@ function publishSettings(settings: AppSettings): void {
   if (settingsWindow !== null && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
   }
+  if (onboardingWindow !== null && !onboardingWindow.isDestroyed()) {
+    onboardingWindow.webContents.send(IPC_CHANNELS.settingsChanged, settings);
+  }
 }
 
 function publishCharacterChange(change: {
@@ -274,11 +279,27 @@ function registerPetIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.getSettings, (event) => {
     if (
-      (settingsWindow === null || event.sender !== settingsWindow.webContents)
+      (settingsWindow === null || event.sender !== settingsWindow.webContents) &&
+      (onboardingWindow === null || event.sender !== onboardingWindow.webContents)
     ) {
       throw new Error("Unauthorized settings request.");
     }
     return requireSettingsController().getSnapshot();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.completeOnboarding, (event, input: unknown) => {
+    if (onboardingWindow === null || event.sender !== onboardingWindow.webContents) {
+      throw new Error("Unauthorized onboarding update.");
+    }
+    try {
+      return requireSettingsController().completeOnboarding(
+        CompleteOnboardingCommandSchema.parse(input),
+        Date.now(),
+      );
+    } catch (error: unknown) {
+      if (error instanceof PersistenceError) handlePersistenceFailure(error);
+      throw error;
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.getActivityPage, (event, input: unknown) => {
@@ -764,6 +785,10 @@ function createPetWindow(): BrowserWindow {
     requireSettingsController().getSnapshot().alwaysOnTop,
     "floating",
   );
+  window.setIgnoreMouseEvents(
+    requireSettingsController().getSnapshot().clickThrough,
+    { forward: true },
+  );
   window.setMenuBarVisibility(false);
 
   secureWindow(window);
@@ -910,6 +935,37 @@ function createSettingsWindow(): BrowserWindow {
   void window.loadFile(
     join(currentDirectory, "../renderer/settings/index.html"),
   );
+  return window;
+}
+
+function createOnboardingWindow(): BrowserWindow {
+  const currentDirectory = dirname(fileURLToPath(import.meta.url));
+  const window = new BrowserWindow({
+    backgroundColor: "#f4f1e8",
+    closable: false,
+    height: 650,
+    maximizable: false,
+    minHeight: 650,
+    minWidth: 700,
+    resizable: false,
+    show: false,
+    title: "Welcome to Desktop Pet",
+    width: 700,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: join(currentDirectory, "../preload/settings.cjs"),
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+  window.setMenuBarVisibility(false);
+  secureWindow(window);
+  window.once("ready-to-show", () => window.show());
+  window.on("closed", () => {
+    if (onboardingWindow === window) onboardingWindow = null;
+  });
+  void window.loadFile(join(currentDirectory, "../renderer/onboarding/index.html"));
   return window;
 }
 
@@ -1408,8 +1464,18 @@ app.whenReady().then(async () => {
       });
       if (petWindow !== null && !petWindow.isDestroyed()) {
         petWindow.setAlwaysOnTop(settings.alwaysOnTop, "floating");
+        petWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
       }
       publishSettings(settings);
+      if (
+        settings.onboardingComplete &&
+        onboardingWindow !== null &&
+        !onboardingWindow.isDestroyed()
+      ) {
+        onboardingWindow.setClosable(true);
+        onboardingWindow.close();
+        if (petWindow === null) petWindow = createPetWindow();
+      }
     });
 
     registerPetIpc();
@@ -1463,10 +1529,16 @@ app.whenReady().then(async () => {
     simulationPaused = false;
   });
 
-  petWindow = createPetWindow();
+  if (requireSettingsController().getSnapshot().onboardingComplete) {
+    petWindow = createPetWindow();
+  } else {
+    onboardingWindow = createOnboardingWindow();
+  }
 
   app.on("activate", () => {
-    if (petWindow === null) {
+    if (!requireSettingsController().getSnapshot().onboardingComplete) {
+      if (onboardingWindow === null) onboardingWindow = createOnboardingWindow();
+    } else if (petWindow === null) {
       petWindow = createPetWindow();
     }
   });

@@ -14,6 +14,7 @@ export const IPC_CHANNELS = Object.freeze({
   homeReady: "home:ready",
   managementTab: "management:set-tab",
   commerceTab: "commerce:set-tab",
+  completeOnboarding: "onboarding:complete",
   openCommerce: "commerce:open",
   openHome: "home:open",
   openManagement: "management:open",

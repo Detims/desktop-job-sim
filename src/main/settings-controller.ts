@@ -4,6 +4,7 @@ import { PersistenceError } from "../persistence/persistence-error.js";
 import {
   ACTIVITY_RETENTION_MS,
   type AppSettings,
+  type CompleteOnboardingCommand,
   type MeaningfulEvent,
   type MeaningfulEventDraft,
   type UpdateSettingsCommand,
@@ -31,6 +32,43 @@ export class SettingsController {
   subscribe(listener: SettingsListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  completeOnboarding(command: CompleteOnboardingCommand, now: number): AppSettings {
+    if (command.baseVersion !== this.settings.settingsVersion) {
+      throw new PersistenceError(
+        "settings.version_conflict",
+        "Settings changed before onboarding could be completed.",
+      );
+    }
+    if (this.settings.onboardingComplete) return this.getSnapshot();
+    const petName = command.petName.trim();
+    if (petName.length < 1 || petName.length > 40) {
+      throw new Error("Pet name must be between 1 and 40 characters.");
+    }
+    const current = this.settings;
+    const next: AppSettings = {
+      ...current,
+      autonomyMode: command.autonomyMode,
+      careIntensity: command.careIntensity,
+      onboardingComplete: true,
+      petName,
+      settingsVersion: current.settingsVersion + 1,
+    };
+    const event = materializeEvent({
+      details: {
+        autonomyMode: next.autonomyMode,
+        careIntensity: next.careIntensity,
+        petName: next.petName,
+      },
+      summary: `Onboarding completed for ${next.petName}.`,
+      type: "settings.onboarding_completed",
+    }, now);
+    this.repository.saveSettings(next, current.settingsVersion, event);
+    this.settings = structuredClone(next);
+    this.onActivity?.(structuredClone(event));
+    for (const listener of this.listeners) listener(this.getSnapshot());
+    return this.getSnapshot();
   }
 
   update(command: UpdateSettingsCommand, now: number): AppSettings {
@@ -93,6 +131,30 @@ export class SettingsController {
           type: "settings.offline_reward_changed" as const,
         };
         break;
+      case "setClickThrough":
+        next = { ...current, clickThrough: command.update.clickThrough };
+        eventDraft = {
+          details: { enabled: next.clickThrough },
+          summary: `Click-through ${next.clickThrough ? "enabled" : "disabled"}.`,
+          type: "settings.click_through_changed" as const,
+        };
+        break;
+      case "setQuietMode":
+        next = { ...current, quietMode: command.update.quietMode };
+        eventDraft = {
+          details: { enabled: next.quietMode },
+          summary: `Quiet mode ${next.quietMode ? "enabled" : "disabled"}.`,
+          type: "settings.quiet_mode_changed" as const,
+        };
+        break;
+      case "setReducedMotion":
+        next = { ...current, reducedMotion: command.update.reducedMotion };
+        eventDraft = {
+          details: { enabled: next.reducedMotion },
+          summary: `Reduced motion ${next.reducedMotion ? "enabled" : "disabled"}.`,
+          type: "settings.reduced_motion_changed" as const,
+        };
+        break;
       case "setActivityRetention":
         next = { ...current, activityRetention: command.update.activityRetention };
         eventDraft = {
@@ -110,6 +172,9 @@ export class SettingsController {
       next.autonomyReserve === current.autonomyReserve &&
       next.offlineAutonomyEnabled === current.offlineAutonomyEnabled &&
       next.offlineRewardMultiplier === current.offlineRewardMultiplier &&
+      next.clickThrough === current.clickThrough &&
+      next.quietMode === current.quietMode &&
+      next.reducedMotion === current.reducedMotion &&
       next.activityRetention === current.activityRetention
     ) {
       return this.getSnapshot();

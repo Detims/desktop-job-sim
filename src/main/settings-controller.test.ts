@@ -15,6 +15,33 @@ function repository(): SettingsActivityRepository {
 }
 
 describe("SettingsController", () => {
+  it("completes onboarding in one durable versioned update", () => {
+    const storage = repository();
+    const activity = vi.fn();
+    const controller = new SettingsController(DEFAULT_APP_SETTINGS, storage, activity);
+
+    const result = controller.completeOnboarding({
+      autonomyMode: "carefulSpending",
+      baseVersion: 0,
+      careIntensity: "relaxed",
+      petName: "  Mochi  ",
+    }, 1_000);
+
+    expect(result).toEqual(expect.objectContaining({
+      autonomyMode: "carefulSpending",
+      careIntensity: "relaxed",
+      onboardingComplete: true,
+      petName: "Mochi",
+      settingsVersion: 1,
+    }));
+    expect(storage.saveSettings).toHaveBeenCalledWith(
+      result,
+      0,
+      expect.objectContaining({ type: "settings.onboarding_completed" }),
+    );
+    expect(activity).toHaveBeenCalledTimes(1);
+  });
+
   it("persists before publishing an authoritative settings change", () => {
     const storage = repository();
     const listener = vi.fn();

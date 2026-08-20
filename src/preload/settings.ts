@@ -3,16 +3,21 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "../shared/ipc-channels.js";
 import type {
   AppSettings,
+  CompleteOnboardingCommand,
   UpdateSettingsCommand,
 } from "../shared/settings-activity-types.js";
 
 export interface DesktopSettingsBridge {
+  completeOnboarding(command: CompleteOnboardingCommand): Promise<AppSettings>;
   getSettings(): Promise<AppSettings>;
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void;
   updateSettings(command: UpdateSettingsCommand): Promise<AppSettings>;
 }
 
 const bridge: DesktopSettingsBridge = Object.freeze({
+  completeOnboarding(command: CompleteOnboardingCommand) {
+    return ipcRenderer.invoke(IPC_CHANNELS.completeOnboarding, command);
+  },
   getSettings() {
     return ipcRenderer.invoke(IPC_CHANNELS.getSettings);
   },

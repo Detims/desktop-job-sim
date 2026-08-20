@@ -9,11 +9,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "npm run build:main && npm run build:preload && npm run build:pet && npm run build:manage && npm run build:home && npm run build:commerce && npm run build:settings && npm run build:characters && npm run build:integrations",
+    "build": "npm run build:main && npm run build:preload && npm run build:pet && npm run build:manage && npm run build:home && npm run build:commerce && npm run build:settings && npm run build:onboarding && npm run build:characters && npm run build:integrations",
     "build:characters": "vite build --config vite.characters.config.ts",
     "build:integrations": "vite build --config vite.integrations.config.ts",
     "build:commerce": "vite build --config vite.commerce.config.ts",
     "build:home": "vite build --config vite.home.config.ts",
+    "build:onboarding": "vite build --config vite.onboarding.config.ts",
     "build:main": "vite build --config vite.main.config.ts",
     "build:manage": "vite build --config vite.manage.config.ts",
     "build:preload": "npm run build:preload:pet && npm run build:preload:management && npm run build:preload:home && npm run build:preload:commerce && npm run build:preload:settings && npm run build:preload:characters && npm run build:preload:integrations",

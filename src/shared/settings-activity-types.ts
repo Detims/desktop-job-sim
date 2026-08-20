@@ -18,8 +18,13 @@ export interface AppSettings {
   autonomyMode: AutonomyMode;
   autonomyReserve: number;
   careIntensity: CareIntensity;
+  clickThrough: boolean;
   offlineAutonomyEnabled: boolean;
   offlineRewardMultiplier: number;
+  onboardingComplete: boolean;
+  petName: string;
+  quietMode: boolean;
+  reducedMotion: boolean;
   settingsVersion: number;
 }
 
@@ -30,7 +35,17 @@ export type SettingsUpdate =
   | { autonomyReserve: number; type: "setAutonomyReserve" }
   | { offlineAutonomyEnabled: boolean; type: "setOfflineAutonomyEnabled" }
   | { offlineRewardMultiplier: number; type: "setOfflineRewardMultiplier" }
+  | { clickThrough: boolean; type: "setClickThrough" }
+  | { quietMode: boolean; type: "setQuietMode" }
+  | { reducedMotion: boolean; type: "setReducedMotion" }
   | { activityRetention: ActivityRetention; type: "setActivityRetention" };
+
+export interface CompleteOnboardingCommand {
+  autonomyMode: AutonomyMode;
+  baseVersion: number;
+  careIntensity: CareIntensity;
+  petName: string;
+}
 
 export interface UpdateSettingsCommand {
   baseVersion: number;
@@ -79,6 +94,10 @@ export type MeaningfulEventType =
   | "settings.offline_autonomy_changed"
   | "settings.offline_reward_changed"
   | "settings.always_on_top_changed"
+  | "settings.click_through_changed"
+  | "settings.quiet_mode_changed"
+  | "settings.reduced_motion_changed"
+  | "settings.onboarding_completed"
   | "settings.retention_changed";
 
 export type EventDetailValue = boolean | number | string | null;
@@ -130,8 +149,13 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettings> = Object.freeze({
   autonomyMode: "manual",
   autonomyReserve: 10,
   careIntensity: "balanced",
+  clickThrough: false,
   offlineAutonomyEnabled: false,
   offlineRewardMultiplier: 0.5,
+  onboardingComplete: false,
+  petName: "",
+  quietMode: false,
+  reducedMotion: false,
   settingsVersion: 0,
 });
 

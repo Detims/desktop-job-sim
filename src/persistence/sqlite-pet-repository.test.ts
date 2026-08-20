@@ -16,6 +16,7 @@ import { DiagnosticLogger } from "./diagnostic-logger.js";
 import { PersistenceError } from "./persistence-error.js";
 import { SqlitePetRepository } from "./sqlite-pet-repository.js";
 import type { MeaningfulEvent } from "../shared/settings-activity-types.js";
+import { DEFAULT_APP_SETTINGS } from "../shared/settings-activity-types.js";
 import type { MemoryEntry } from "../shared/memory-types.js";
 import { BUILT_IN_CHARACTER_ID } from "../domain/built-in-character.js";
 import { CharacterPackManifestSchema } from "../shared/character-contracts.js";
@@ -138,7 +139,7 @@ describe("SqlitePetRepository", () => {
     const version = migrated.prepare("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(13);
+    expect(version.user_version).toBe(14);
     migrated.close();
   });
 
@@ -286,16 +287,7 @@ describe("SqlitePetRepository", () => {
   it("persists versioned settings and their audit event atomically", () => {
     const { logger, paths } = fixture();
     const repository = SqlitePetRepository.open(paths, logger);
-    expect(repository.loadSettings()).toEqual({
-      activityRetention: "thirtyDays",
-      alwaysOnTop: true,
-      autonomyMode: "manual",
-      autonomyReserve: 10,
-      careIntensity: "balanced",
-      offlineAutonomyEnabled: false,
-      offlineRewardMultiplier: 0.5,
-      settingsVersion: 0,
-    });
+    expect(repository.loadSettings()).toEqual(DEFAULT_APP_SETTINGS);
 
     const event: MeaningfulEvent = {
       details: { from: "balanced", to: "relaxed" },
