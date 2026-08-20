@@ -1,6 +1,6 @@
 {
   "name": "desktop-pet",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "dist/main/index.js",
@@ -28,10 +28,13 @@
     "build:pet": "vite build --config vite.pet.config.ts",
     "build:settings": "vite build --config vite.settings.config.ts",
     "dev": "npm run start",
+    "package:win": "npm run build && electron-builder --win nsis portable --x64",
+    "package:win:dir": "npm run build && electron-builder --win dir --x64",
     "postinstall": "install-electron",
     "start": "npm run build && electron .",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "verify:mvp": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "pixi.js": "^8.19.0",
@@ -47,9 +50,37 @@
     "@types/yauzl": "^3.4.0",
     "@types/yazl": "^3.3.1",
     "electron": "^43.2.0",
+    "electron-builder": "^26.0.12",
     "typescript": "^7.0.2",
     "vite": "^8.1.0",
     "vitest": "^4.1.0",
     "yazl": "^3.3.1"
+  },
+  "build": {
+    "appId": "com.detims.desktoppet",
+    "productName": "Desktop Pet",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "content/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false,
+      "perMachine": false
+    }
   }
 }

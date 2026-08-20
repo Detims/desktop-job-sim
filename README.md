@@ -8,10 +8,12 @@ implementation decisions.
 
 ## Current scope
 
-This repository contains only the foundation for the first prototype vertical
-slice described by SDD section 22. Gmail, advanced careers, general mod support,
-macOS packaging, multiple pets, and other post-slice features are intentionally
-not implemented.
+This repository contains the Windows MVP candidate. It includes persistent pet
+care and recovery, configurable autonomy, careers and exams, Home furniture,
+relationship and personal growth, character-pack import, and read-only Gmail
+notification infrastructure. Live Google account authorization remains an
+external acceptance check; Calendar, Canvas, automatic updates, multiple pets,
+and macOS packaging are deferred.
 
 ## Project structure
 
@@ -60,3 +62,22 @@ reset.
 npm install
 npm start
 ```
+
+Run the complete local verification gate with `npm run verify:mvp`. Build the
+x64 Windows installer and portable executable with `npm run package:win`; output
+is written to the ignored `release/` directory. MVP artifacts are unsigned;
+code signing is a release-distribution step rather than a local build requirement.
+
+## MVP acceptance status
+
+- First-run onboarding creates a named local profile and selects care/autonomy behavior.
+- Needs, care, illness, autonomy, work recovery, exams, careers, Home, memories,
+  relationship progress, and character imports have automated domain and persistence tests.
+- The system tray makes Hide and click-through recoverable and exposes immediate
+  quiet-mode, always-on-top, Settings, and Exit controls.
+- Clerk provides a three-rank progression proof, career dialogue, paperwork work
+  animation, and a rank-two exclusive filing cabinet with a Home unlock memory.
+- Home supports mouse and keyboard placement plus persisted furniture storage.
+- Core renderers build under context isolation and sandboxed preload bridges.
+- Gmail polling, privacy modes, deduplication, quiet hours, and failure isolation
+  are automated; real-provider authorization is intentionally not yet confirmed.

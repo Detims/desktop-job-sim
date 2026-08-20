@@ -20,5 +20,4 @@ Thumbs.db
 *.sqlite-wal
 
 .editorconfig
-package-lock.json
 .env.local
