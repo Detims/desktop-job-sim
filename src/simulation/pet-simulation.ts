@@ -25,6 +25,7 @@ import {
   type StudyDefinition,
 } from "../shared/contracts.js";
 import {
+  getCareerDefinition,
   getCareerJobDefinition,
   isCareerJobUnlocked,
   reconcileCareerProgression,
@@ -608,7 +609,7 @@ export function advancePetState(
           },
         };
         activity = null;
-        statusText = `Completed ${definition.name}.`;
+        statusText = getCareerDefinition(definition.careerId).dialogue.workComplete;
       } else {
         activity = {
           ...activity,

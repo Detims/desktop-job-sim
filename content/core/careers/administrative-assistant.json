@@ -1,6 +1,11 @@
 {
   "id": "core:administrative-assistant",
   "name": "Administrative Assistant",
+  "dialogue": {
+    "enrollment": "My calendar is open and the office is ready.",
+    "promotion": "Another administrative milestone reached.",
+    "workComplete": "The schedule is tidy and everyone has what they need."
+  },
   "enrollmentKnowledge": {
     "fieldId": "core:business-administration",
     "minimum": 0

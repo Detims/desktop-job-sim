@@ -158,7 +158,7 @@ export function enrollCareer(
         rankId: firstRank.id,
       },
     },
-    statusText: `Started the ${career.name} career as ${firstRank.name}.`,
+    statusText: career.dialogue.enrollment,
   };
 }
 
@@ -245,7 +245,7 @@ export function promoteCareer(
         rankId: nextRank.id,
       },
     },
-    statusText: `Promoted to ${nextRank.name}.`,
+    statusText: career.dialogue.promotion,
   };
 }
 
@@ -329,6 +329,14 @@ export function careerMemoryDrafts(
       continue;
     }
     const rank = career.ranks[rankIndex(career, next.rankId)];
+    if (careerId === "core:clerk" && next.rankId === "core:clerk:clerk") {
+      memories.push({
+        category: "home",
+        description: "Advanced to Clerk and unlocked the exclusive filing cabinet for Home.",
+        petId: after.petId,
+        title: "Clerk Filing Cabinet Unlocked",
+      });
+    }
     if (rank?.advancement === "promotion") {
       memories.push({
         category: "career",

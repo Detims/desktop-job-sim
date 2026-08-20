@@ -11,6 +11,7 @@ export const BUILT_IN_CHARACTER_ID = "core:prototype-cat";
 export const BUILT_IN_CHARACTER_MANIFEST: CharacterPackManifest = Object.freeze({
   animations: {
     idle: { fps: 6, frames: [0, 1, 2, 3], loop: true },
+    work: { fps: 8, frames: [0, 1, 2, 1, 3, 1], loop: true },
   },
   canvas: {
     anchors: { feet: { x: 271.5, y: 724 } },
@@ -20,9 +21,12 @@ export const BUILT_IN_CHARACTER_MANIFEST: CharacterPackManifest = Object.freeze(
     width: 543,
   },
   engineVersion: 1,
-  fallbacks: Object.fromEntries(
-    CHARACTER_ANIMATION_STATES.map((state) => [state, "idle"]),
-  ) as CharacterPackManifest["fallbacks"],
+  fallbacks: {
+    ...Object.fromEntries(
+      CHARACTER_ANIMATION_STATES.map((state) => [state, "idle"]),
+    ),
+    work: "work",
+  } as CharacterPackManifest["fallbacks"],
   id: BUILT_IN_CHARACTER_ID,
   metadata: {
     commercialUse: "allowed",

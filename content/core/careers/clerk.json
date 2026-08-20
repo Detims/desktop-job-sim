@@ -1,6 +1,11 @@
 {
   "id": "core:clerk",
   "name": "Clerk",
+  "dialogue": {
+    "enrollment": "I have my first stack of forms. Let's keep everything organized.",
+    "promotion": "The records are balanced and the desk is clear. Senior Clerk suits me.",
+    "workComplete": "Filed, checked, and ready for the next request."
+  },
   "enrollmentKnowledge": {
     "fieldId": "core:general",
     "minimum": 5

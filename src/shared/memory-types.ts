@@ -1,5 +1,6 @@
 export type MemoryCategory =
   | "career"
+  | "home"
   | "illness"
   | "personal-growth"
   | "qualification"

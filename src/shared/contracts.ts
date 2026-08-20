@@ -384,6 +384,11 @@ export const CareerRankDefinitionSchema = z.object({
 });
 
 export const CareerDefinitionSchema = z.object({
+  dialogue: z.object({
+    enrollment: z.string().min(1),
+    promotion: z.string().min(1),
+    workComplete: z.string().min(1),
+  }),
   enrollmentKnowledge: z.object({
     fieldId: z.string().min(1),
     minimum: z.number().nonnegative(),

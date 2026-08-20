@@ -1187,6 +1187,16 @@ export class SqlitePetRepository
           ALTER TABLE app_settings
             ADD COLUMN reduced_motion INTEGER NOT NULL DEFAULT 0
               CHECK (reduced_motion IN (0, 1));
+          UPDATE app_settings
+             SET onboarding_complete = CASE
+                   WHEN EXISTS (SELECT 1 FROM pet_runtime WHERE id = 1) THEN 1
+                   ELSE 0
+                 END,
+                 pet_name = CASE
+                   WHEN EXISTS (SELECT 1 FROM pet_runtime WHERE id = 1) THEN 'Pet'
+                   ELSE ''
+                 END
+           WHERE id = 1;
         `);
       }
       database.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);

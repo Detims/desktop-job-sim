@@ -6,6 +6,7 @@ import {
   CLERK_CAREER,
   CLERK_JOBS,
   CareerRuleError,
+  careerMemoryDrafts,
   enrollCareer,
   isCareerJobUnlocked,
   promoteCareer,
@@ -48,6 +49,12 @@ describe("Clerk career progression", () => {
     };
     const advanced = reconcileCareerProgression(qualified, 2);
     expect(advanced.careers[CLERK_CAREER.id]?.rankId).toBe("core:clerk:clerk");
+    expect(careerMemoryDrafts(qualified, advanced)).toEqual([
+      expect.objectContaining({
+        category: "home",
+        title: "Clerk Filing Cabinet Unlocked",
+      }),
+    ]);
   });
 
   it("marks Senior promotion ready but never promotes automatically", () => {

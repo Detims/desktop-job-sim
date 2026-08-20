@@ -245,6 +245,11 @@ export interface CareerRankDefinition {
 }
 
 export interface CareerDefinition {
+  dialogue: {
+    enrollment: string;
+    promotion: string;
+    workComplete: string;
+  };
   enrollmentKnowledge: {
     fieldId: string;
     minimum: number;

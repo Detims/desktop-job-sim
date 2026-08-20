@@ -1,4 +1,4 @@
-export type FurnitureKind = "bed" | "desk";
+export type FurnitureKind = "bed" | "desk" | "filingCabinet";
 
 export interface FurniturePlacement {
   height: number;

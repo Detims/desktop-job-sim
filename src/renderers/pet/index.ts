@@ -12,6 +12,7 @@ import {
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
 import { CharacterVisualRenderer } from "../shared/character-visual.js";
+import { ClerkWorkVisual } from "../shared/clerk-work-visual.js";
 import { initializeMailNotifications } from "../shared/mail-notifications.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
@@ -91,6 +92,12 @@ const characterVisual = new CharacterVisualRenderer(pixi, {
   x: pixi.screen.width / 2,
   y: pixi.screen.height - 76,
 });
+const clerkWorkVisual = new ClerkWorkVisual(
+  pixi,
+  pixi.screen.width / 2 + 70,
+  pixi.screen.height - 142,
+  0.8,
+);
 
 function renderNeed(name: keyof NeedState, value: number): void {
   const element = needElements[name];
@@ -139,6 +146,7 @@ function renderState(state: PetState): void {
       ? ""
       : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
   setPresentation(state.presentation);
+  clerkWorkVisual.setState(state);
 
   const hasActivity = state.activity !== null;
   workOverlay.hidden = !hasActivity;
@@ -389,6 +397,7 @@ function applyDisplaySettings(settings: Awaited<ReturnType<typeof window.desktop
   document.body.classList.toggle("quiet-mode", settings.quietMode);
   document.body.classList.toggle("reduced-motion", settings.reducedMotion);
   characterVisual.setReducedMotion(settings.reducedMotion);
+  clerkWorkVisual.setReducedMotion(settings.reducedMotion);
   pixi.ticker.maxFPS = settings.reducedMotion ? 2 : 12;
 }
 applyDisplaySettings(await window.desktopPet.getSettings());

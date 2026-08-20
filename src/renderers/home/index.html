@@ -19,9 +19,14 @@
         </div>
       </header>
 
+      <section class="furniture-library" aria-labelledby="furniture-library-heading">
+        <div><strong id="furniture-library-heading">Furniture storage</strong><span>Stored furniture provides no passive bonus.</span></div>
+        <div id="furniture-library-items"></div>
+      </section>
+
       <section class="room-frame" aria-label="Starter room furniture editor">
         <div id="home-canvas"></div>
-        <p class="room-hint">Drag furniture to a clear grid position. Red previews cannot be placed.</p>
+        <p class="room-hint">Drag furniture, or select it from storage and use the arrow keys. Delete stores the selected item.</p>
 
         <section id="work-overlay" aria-label="Active activity" hidden>
           <output id="work-countdown" aria-live="polite"></output>

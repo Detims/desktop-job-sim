@@ -10,7 +10,7 @@ export type {
   SaveHomeLayoutCommand,
 } from "./home-types.js";
 
-export const FurnitureKindSchema = z.enum(["bed", "desk"]);
+export const FurnitureKindSchema = z.enum(["bed", "desk", "filingCabinet"]);
 
 export const FurniturePlacementSchema = z.object({
   height: z.number().int().positive(),

@@ -8,8 +8,10 @@ import {
 import spriteSheetUrl from "../../../content/core/characters/prototype-cat/idle.png";
 import { activityLabel } from "../../shared/activity-label.js";
 import {
+  HOME_FURNITURE_DEFINITIONS,
   HOME_GRID_COLUMNS,
   HOME_GRID_ROWS,
+  isHomeFurnitureUnlocked,
   validateHomeFurniture,
 } from "../../domain/home-layout.js";
 import type {
@@ -25,6 +27,7 @@ import type {
 import { applyPatch, readSnapshot } from "../shared/pet-store.js";
 import { initializePetOverlay } from "../shared/pet-overlay.js";
 import { CharacterVisualRenderer } from "../shared/character-visual.js";
+import { ClerkWorkVisual } from "../shared/clerk-work-visual.js";
 import { initializeMailNotifications } from "../shared/mail-notifications.js";
 import "./styles.css";
 import "../shared/pet-overlay.css";
@@ -62,6 +65,7 @@ const cancelWorkButton = requiredElement<HTMLButtonElement>("#cancel-work-button
 const saveButton = requiredElement<HTMLButtonElement>("#save-button");
 const discardButton = requiredElement<HTMLButtonElement>("#discard-button");
 const layoutStatus = requiredElement<HTMLOutputElement>("#layout-status");
+const furnitureLibrary = requiredElement<HTMLElement>("#furniture-library-items");
 const desktopButton = requiredElement<HTMLButtonElement>("#desktop-button");
 const workMenuButton = requiredElement<HTMLButtonElement>("#work-menu-button");
 const careersMenuButton = requiredElement<HTMLButtonElement>("#careers-menu-button");
@@ -94,6 +98,7 @@ let draftLayout = cloneLayout(layoutSnapshot.layout);
 let resyncInFlight: Promise<void> | null = null;
 let statsOpen = false;
 let saving = false;
+let selectedFurnitureId: string | null = null;
 
 const pixi = new Application();
 await pixi.init({
@@ -141,23 +146,35 @@ function renderFurniture(invalidId: string | null = null): void {
     const y = placement.y * CELL_SIZE;
     const width = placement.width * CELL_SIZE;
     const height = placement.height * CELL_SIZE;
+    const selected = placement.id === selectedFurnitureId;
     const color = invalid
       ? 0xdc2626
       : placement.kind === "bed"
         ? 0xd8a6b8
-        : 0x9b7149;
+        : placement.kind === "desk"
+          ? 0x9b7149
+          : 0x8190a5;
     const graphic = new Graphics()
       .roundRect(x + 3, y + 3, width - 6, height - 6, 9)
       .fill({ color, alpha: invalid ? 0.72 : 0.96 })
-      .stroke({ color: invalid ? 0xffd1d1 : 0x33283a, width: invalid ? 4 : 2 });
+      .stroke({
+        color: invalid ? 0xffd1d1 : selected ? 0xfbbf24 : 0x33283a,
+        width: invalid || selected ? 4 : 2,
+      });
     if (placement.kind === "bed") {
       graphic
         .roundRect(x + 12, y + 13, width - 24, height * 0.35, 7)
         .fill({ color: 0xf5e6de, alpha: 0.9 });
-    } else {
+    } else if (placement.kind === "desk") {
       graphic
         .rect(x + 14, y + 17, width - 28, 8)
         .fill({ color: 0x33283a, alpha: 0.8 });
+    } else {
+      graphic
+        .rect(x + 10, y + 16, width - 20, 13)
+        .fill({ color: 0xe2e8f0, alpha: 0.85 })
+        .rect(x + 10, y + 38, width - 20, 13)
+        .fill({ color: 0xe2e8f0, alpha: 0.85 });
     }
     const label = new Text({
       style: {
@@ -166,11 +183,90 @@ function renderFurniture(invalidId: string | null = null): void {
         fontSize: 15,
         fontWeight: "700",
       },
-      text: placement.kind === "bed" ? "Bed" : "Desk",
+      text: HOME_FURNITURE_DEFINITIONS[placement.id]?.name ?? placement.kind,
     });
     label.anchor.set(0.5);
     label.position.set(x + width / 2, y + height / 2 + 18);
     furnitureLayer.addChild(graphic, label);
+  }
+  renderFurnitureLibrary();
+}
+
+function firstOpenPlacement(id: string): FurniturePlacement | null {
+  const definition = HOME_FURNITURE_DEFINITIONS[id];
+  if (definition === undefined) return null;
+  for (let y = 0; y <= HOME_GRID_ROWS - definition.height; y += 1) {
+    for (let x = 0; x <= HOME_GRID_COLUMNS - definition.width; x += 1) {
+      const candidate: FurniturePlacement = {
+        height: definition.height,
+        id: definition.id,
+        kind: definition.kind,
+        width: definition.width,
+        x,
+        y,
+      };
+      if (validateHomeFurniture([...draftLayout.furniture, candidate]).valid) return candidate;
+    }
+  }
+  return null;
+}
+
+function renderFurnitureLibrary(): void {
+  furnitureLibrary.replaceChildren();
+  for (const definition of Object.values(HOME_FURNITURE_DEFINITIONS)) {
+    const row = document.createElement("div");
+    row.className = "furniture-item";
+    const unlocked = isHomeFurnitureUnlocked(currentState, definition.id);
+    if (!unlocked) {
+      row.classList.add("locked");
+      row.textContent = `${definition.name} · unlock at Clerk rank 2`;
+      furnitureLibrary.append(row);
+      continue;
+    }
+    const placed = draftLayout.furniture.some(({ id }) => id === definition.id);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = placed ? `Store ${definition.name}` : `Place ${definition.name}`;
+    toggle.addEventListener("click", () => {
+      if (placed) {
+        draftLayout = {
+          ...draftLayout,
+          furniture: draftLayout.furniture.filter(({ id }) => id !== definition.id),
+        };
+        if (selectedFurnitureId === definition.id) selectedFurnitureId = null;
+      } else {
+        const placement = firstOpenPlacement(definition.id);
+        if (placement === null) {
+          layoutStatus.classList.add("error");
+          layoutStatus.value = "No clear grid position is available.";
+          return;
+        }
+        draftLayout = {
+          ...draftLayout,
+          furniture: [...draftLayout.furniture, placement],
+        };
+        selectedFurnitureId = definition.id;
+      }
+      renderFurniture();
+      updateDirtyState();
+    });
+    row.append(toggle);
+    if (placed) {
+      const select = document.createElement("button");
+      select.type = "button";
+      select.className = selectedFurnitureId === definition.id
+        ? "select-furniture active"
+        : "select-furniture";
+      select.textContent = selectedFurnitureId === definition.id ? "Selected" : "Select";
+      select.setAttribute("aria-pressed", String(selectedFurnitureId === definition.id));
+      select.addEventListener("click", () => {
+        selectedFurnitureId = definition.id;
+        renderFurniture();
+        pixi.canvas.focus();
+      });
+      row.append(select);
+    }
+    furnitureLibrary.append(row);
   }
 }
 
@@ -187,6 +283,7 @@ const characterVisual = new CharacterVisualRenderer(pixi, {
   x: PET_X,
   y: PET_BOTTOM,
 });
+const clerkWorkVisual = new ClerkWorkVisual(pixi, PET_X + 54, PET_BOTTOM - 92, 0.55);
 try {
   await characterVisual.replace(await window.desktopHome.getCharacterVisual());
 } catch (error: unknown) {
@@ -216,6 +313,7 @@ function renderState(state: PetState): void {
       ? ""
       : `Discouraged · ${Math.max(0, Math.ceil((discouraged.expiresAt - Date.now()) / 60_000))}m`;
   characterVisual.setPresentation(state.presentation);
+  clerkWorkVisual.setState(state);
   const petVisual = characterVisual.display;
   if (petVisual !== null) {
     petVisual.tint = state.presentation === "petted" || state.presentation === "playing"
@@ -235,6 +333,7 @@ function renderState(state: PetState): void {
     );
     workCountdown.value = `${activityLabel(state.activity)} · ${seconds}s`;
   }
+  renderFurnitureLibrary();
 }
 
 function updateDirtyState(): void {
@@ -357,6 +456,8 @@ pixi.canvas.addEventListener("pointerdown", (event) => {
   const point = scenePoint(event);
   const placement = furnitureAt(point);
   if (placement !== null) {
+    selectedFurnitureId = placement.id;
+    renderFurniture();
     drag = {
       id: placement.id,
       offsetX: Math.floor(point.x / CELL_SIZE) - placement.x,
@@ -419,7 +520,40 @@ pixi.canvas.addEventListener("contextmenu", (event) => {
   if (pointIsOnPet(scenePoint(event))) setStatsOpen(!statsOpen);
 });
 pixi.canvas.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" || event.key === " ") {
+  if (selectedFurnitureId !== null && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    const delta = {
+      ArrowDown: [0, 1],
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+    }[event.key] ?? [0, 0];
+    const nextFurniture = draftLayout.furniture.map((item) =>
+      item.id === selectedFurnitureId
+        ? { ...item, x: item.x + delta[0]!, y: item.y + delta[1]! }
+        : item,
+    );
+    if (validateHomeFurniture(nextFurniture).valid) {
+      draftLayout = { ...draftLayout, furniture: nextFurniture };
+      renderFurniture();
+      updateDirtyState();
+    } else {
+      layoutStatus.classList.add("error");
+      layoutStatus.value = "That grid position is not available.";
+    }
+  } else if (selectedFurnitureId !== null && event.key === "Delete") {
+    event.preventDefault();
+    draftLayout = {
+      ...draftLayout,
+      furniture: draftLayout.furniture.filter(({ id }) => id !== selectedFurnitureId),
+    };
+    selectedFurnitureId = null;
+    renderFurniture();
+    updateDirtyState();
+  } else if (selectedFurnitureId !== null && event.key === "Escape") {
+    selectedFurnitureId = null;
+    renderFurniture();
+  } else if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
     void dispatch({ type: "pet" });
   }
@@ -482,6 +616,7 @@ function applyDisplaySettings(settings: Awaited<ReturnType<typeof window.desktop
   document.body.classList.toggle("quiet-mode", settings.quietMode);
   document.body.classList.toggle("reduced-motion", settings.reducedMotion);
   characterVisual.setReducedMotion(settings.reducedMotion);
+  clerkWorkVisual.setReducedMotion(settings.reducedMotion);
   pixi.ticker.maxFPS = settings.reducedMotion ? 2 : 12;
 }
 applyDisplaySettings(await window.desktopHome.getSettings());

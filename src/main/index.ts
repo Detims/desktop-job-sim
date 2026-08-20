@@ -68,7 +68,10 @@ import { recoverPetState } from "../persistence/recovery.js";
 import { SqlitePetRepository } from "../persistence/sqlite-pet-repository.js";
 import { CharacterPackStore } from "../persistence/character-pack-store.js";
 import { EncryptedGoogleCredentialVault } from "../persistence/google-credential-vault.js";
-import { createInitialHomeLayout } from "../domain/home-layout.js";
+import {
+  createInitialHomeLayout,
+  isHomeFurnitureUnlocked,
+} from "../domain/home-layout.js";
 import { resolveFurnitureBonuses } from "../domain/furniture-bonuses.js";
 import { careerEventDrafts } from "../domain/career.js";
 import { createInitialPetState } from "../simulation/pet-simulation.js";
@@ -642,8 +645,16 @@ function registerPetIpc(): void {
         throw new Error("Unauthorized Home-layout save.");
       }
       try {
+        const command = SaveHomeLayoutCommandSchema.parse(input);
+        const state = requirePetController().getSnapshot().state;
+        const locked = command.furniture.find(
+          ({ id }) => !isHomeFurnitureUnlocked(state, id),
+        );
+        if (locked !== undefined) {
+          throw new Error("That furniture has not been unlocked by career progress.");
+        }
         const snapshot = requireHomeLayoutController().save(
-          SaveHomeLayoutCommandSchema.parse(input),
+          command,
         );
         requirePetController().setActivityBonuses(
           resolveFurnitureBonuses(snapshot.layout),
