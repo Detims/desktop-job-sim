@@ -21,6 +21,10 @@ const TokenResponseSchema = z.object({
   refresh_token: z.string().min(1).optional(),
 });
 
+const TokenErrorSchema = z.object({
+  error: z.string().optional(),
+});
+
 const ProfileResponseSchema = z.object({ emailAddress: z.string().email() });
 
 export class GoogleOAuthError extends Error {
@@ -203,14 +207,44 @@ export class GoogleOAuthClient {
       throw new GoogleOAuthError("oauth.network_failed", "Google authentication is temporarily unavailable.", false, { cause: error });
     }
     if (!response.ok) {
-      let reauthRequired = response.status === 400 || response.status === 401;
+      let providerError: string | undefined;
       try {
-        const payload = await response.clone().json() as { error?: unknown };
-        reauthRequired ||= payload.error === "invalid_grant";
+        providerError = TokenErrorSchema.parse(await response.clone().json()).error;
       } catch {}
+      const reauthRequired = providerError === "invalid_grant";
+      const failure = (() => {
+        switch (providerError) {
+          case "invalid_client":
+          case "unauthorized_client":
+            return {
+              code: "oauth.client_invalid",
+              message: "Google rejected this OAuth client. Use an enabled Desktop app client ID.",
+            };
+          case "redirect_uri_mismatch":
+            return {
+              code: "oauth.redirect_invalid",
+              message: "Google rejected the loopback redirect. Use a Desktop app OAuth client.",
+            };
+          case "invalid_grant":
+            return {
+              code: "oauth.invalid_grant",
+              message: "Google rejected the authorization code or PKCE verifier. Start authorization again.",
+            };
+          case "invalid_request":
+            return {
+              code: "oauth.request_invalid",
+              message: "Google rejected the OAuth token request configuration.",
+            };
+          default:
+            return {
+              code: "oauth.exchange_failed",
+              message: "Google authentication failed.",
+            };
+        }
+      })();
       throw new GoogleOAuthError(
-        "oauth.exchange_failed",
-        reauthRequired ? "Google authorization expired. Reconnect the account." : "Google authentication failed.",
+        failure.code,
+        failure.message,
         reauthRequired,
       );
     }

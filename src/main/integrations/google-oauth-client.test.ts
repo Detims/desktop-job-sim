@@ -53,8 +53,22 @@ describe("GoogleOAuthClient", () => {
       async openExternal() {},
     });
     await expect(client.refresh("expired")).rejects.toEqual(expect.objectContaining({
-      code: "oauth.exchange_failed",
+      code: "oauth.invalid_grant",
       reauthRequired: true,
+    }));
+  });
+
+  it("distinguishes an invalid desktop OAuth client without exposing provider details", async () => {
+    const client = new GoogleOAuthClient("client-id", {
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(new Response(
+        JSON.stringify({ error: "unauthorized_client", error_description: "private provider detail" }),
+        { status: 400 },
+      )),
+      async openExternal() {},
+    });
+    await expect(client.refresh("refresh-token")).rejects.toEqual(expect.objectContaining({
+      code: "oauth.client_invalid",
+      message: "Google rejected this OAuth client. Use an enabled Desktop app client ID.",
     }));
   });
 });

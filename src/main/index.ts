@@ -655,9 +655,20 @@ function handleHomeUnavailable(eventCode: string, cause: unknown): void {
   restoreDesktopPet();
 }
 
-function secureWindow(window: BrowserWindow): void {
+function secureWindow(
+  window: BrowserWindow,
+  allowedInitialNavigation?: string,
+): void {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  window.webContents.on("will-navigate", (event) => {
+  window.webContents.on("will-navigate", (event, targetUrl) => {
+    const currentUrl = window.webContents.getURL();
+    if (
+      allowedInitialNavigation !== undefined &&
+      targetUrl === allowedInitialNavigation &&
+      (currentUrl === "" || currentUrl === "about:blank")
+    ) {
+      return;
+    }
     event.preventDefault();
   });
 }
@@ -970,7 +981,7 @@ function configureIntegrationChildHost(host: BrowserWindow): void {
     }
     integrationsWindow = child;
     child.setMenuBarVisibility(false);
-    secureWindow(child);
+    secureWindow(child, rendererUrl);
     child.on("closed", () => {
       if (integrationsWindow === child) integrationsWindow = null;
     });
